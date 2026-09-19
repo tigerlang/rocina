@@ -1,0 +1,4 @@
+/rocina
+*.test
+.rocina/
+rocina.json
