@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"rocina/internal/bus"
 	"rocina/internal/config"
 	"rocina/internal/session"
 	"rocina/internal/tui"
@@ -68,6 +69,27 @@ func TestTUIModelPickerTabSwitchesTarget(t *testing.T) {
 	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if view := model.(tui.Model).View(); !strings.Contains(view, "target: chief") {
 		t.Fatalf("tab should switch back to chief:\n%s", view)
+	}
+}
+
+func TestTUIStopMenuOpensOnDoubleEsc(t *testing.T) {
+	cfg := config.Default()
+	cfg.Model = "test-model"
+	cfg.DataDir = t.TempDir()
+	cfg.Workspace = t.TempDir()
+	mgr, err := session.NewManager(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("manager: %v", err)
+	}
+	var model tea.Model = tui.New(mgr)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	chief := mgr.Active().Orch.Bus().Chief()
+	mgr.Active().Orch.Bus().SetState(chief, bus.StateRunning, "")
+
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if view := model.(tui.Model).View(); !strings.Contains(view, "STOP") {
+		t.Fatalf("double esc should open the stop menu:\n%s", view)
 	}
 }
 

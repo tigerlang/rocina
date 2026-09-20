@@ -54,7 +54,13 @@ const (
 	overlaySettings
 	overlayApproval
 	overlayModels
+	overlayStop
 )
+
+type stopOption struct {
+	kind  string
+	label string
+}
 
 type sessionView struct {
 	session  *session.Session
@@ -88,6 +94,12 @@ type Model struct {
 	overlay       overlayKind
 	approval      *approvalRequest
 	sessionCursor int
+
+	stopMenu      []stopOption
+	stopCursor    int
+	stopSubmenu   bool
+	stopSubCursor int
+	lastEsc       time.Time
 
 	userDir string
 
@@ -268,6 +280,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if m.overlay == overlayNone && msg.String() == "esc" {
+		now := time.Now()
+		if now.Sub(m.lastEsc) < 500*time.Millisecond && m.openStopMenu() {
+			m.lastEsc = time.Time{}
+			return true, nil
+		}
+		m.lastEsc = now
+	}
+	if m.overlay == overlayStop {
+		return m.handleStopKey(msg)
+	}
 	if m.overlay == overlayApproval {
 		switch msg.String() {
 		case "y", "enter":
@@ -407,6 +430,27 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 				m.overlay = overlayNone
 				return *m, nil
 			}
+		}
+		return *m, nil
+	}
+
+	if m.overlay == overlayStop {
+		for index, r := range m.stopItemRects() {
+			if !r.contains(msg.X, msg.Y) {
+				continue
+			}
+			if m.stopSubmenu {
+				subs := m.stopSubs()
+				if index < len(subs) {
+					m.stopSubCursor = index
+					m.stopAgent(subs[index].Name)
+				}
+				m.closeStop()
+			} else {
+				m.stopCursor = index
+				m.activateStop()
+			}
+			return *m, nil
 		}
 		return *m, nil
 	}
@@ -589,9 +633,10 @@ func (m *Model) selectModel() {
 	}
 	if m.modelTarget == 1 {
 		view.session.Orch.SetSubModel(m.models[m.modelCursor])
-		return
+	} else {
+		view.session.Orch.SetChiefModel(m.models[m.modelCursor])
 	}
-	view.session.Orch.SetChiefModel(m.models[m.modelCursor])
+	_ = config.Save(config.UserConfigPath(), view.session.Orch.Config())
 }
 
 func (m Model) targetModel(view *sessionView) string {
@@ -617,6 +662,202 @@ func (m *Model) syncModelCursor() {
 			return
 		}
 	}
+}
+
+func (m *Model) openStopMenu() bool {
+	view := m.activeView()
+	if view == nil {
+		return false
+	}
+	working := view.session.Orch.WorkingAgents()
+	if len(working) == 0 {
+		return false
+	}
+	hasChief := false
+	subs := 0
+	for _, agent := range working {
+		if agent.Kind == bus.KindChief {
+			hasChief = true
+		} else {
+			subs++
+		}
+	}
+	menu := []stopOption{}
+	if hasChief {
+		menu = append(menu, stopOption{"chief", "chief"})
+	}
+	if subs > 0 {
+		menu = append(menu, stopOption{"submenu", "Subagent…"})
+		menu = append(menu, stopOption{"subs", "all subagents"})
+	}
+	menu = append(menu, stopOption{"all", "all agents"})
+	m.stopMenu = menu
+	m.stopCursor = 0
+	m.stopSubmenu = false
+	m.stopSubCursor = 0
+	m.overlay = overlayStop
+	return true
+}
+
+func (m *Model) closeStop() {
+	m.overlay = overlayNone
+	m.stopMenu = nil
+	m.stopSubmenu = false
+	m.stopCursor = 0
+	m.stopSubCursor = 0
+}
+
+func (m *Model) handleStopKey(msg tea.KeyMsg) (bool, tea.Cmd) {
+	if m.stopSubmenu {
+		subs := m.stopSubs()
+		switch msg.String() {
+		case "esc", "left":
+			m.stopSubmenu = false
+		case "up", "k":
+			if m.stopSubCursor > 0 {
+				m.stopSubCursor--
+			}
+		case "down", "j":
+			if m.stopSubCursor < len(subs)-1 {
+				m.stopSubCursor++
+			}
+		case "tab":
+			if len(subs) > 0 {
+				m.stopSubCursor = (m.stopSubCursor + 1) % len(subs)
+			}
+		case "enter":
+			if m.stopSubCursor < len(subs) {
+				m.stopAgent(subs[m.stopSubCursor].Name)
+			}
+			m.closeStop()
+		}
+		return true, nil
+	}
+	switch msg.String() {
+	case "esc":
+		m.closeStop()
+	case "up", "k":
+		if m.stopCursor > 0 {
+			m.stopCursor--
+		}
+	case "down", "j":
+		if m.stopCursor < len(m.stopMenu)-1 {
+			m.stopCursor++
+		}
+	case "tab":
+		if len(m.stopMenu) > 0 {
+			m.stopCursor = (m.stopCursor + 1) % len(m.stopMenu)
+		}
+	case "enter":
+		m.activateStop()
+	}
+	return true, nil
+}
+
+func (m *Model) activateStop() {
+	if m.stopCursor < 0 || m.stopCursor >= len(m.stopMenu) {
+		return
+	}
+	view := m.activeView()
+	if view == nil {
+		return
+	}
+	orch := view.session.Orch
+	switch m.stopMenu[m.stopCursor].kind {
+	case "chief":
+		if chief := orch.Bus().Chief(); chief != nil {
+			orch.StopAgent(chief.Name)
+		}
+		m.closeStop()
+	case "submenu":
+		m.stopSubmenu = true
+		m.stopSubCursor = 0
+	case "subs":
+		orch.StopSubs()
+		m.closeStop()
+	case "all":
+		orch.StopAll()
+		m.closeStop()
+	}
+}
+
+func (m *Model) stopAgent(name string) {
+	view := m.activeView()
+	if view == nil {
+		return
+	}
+	view.session.Orch.StopAgent(name)
+}
+
+func (m Model) stopSubs() []*bus.Agent {
+	view := m.activeView()
+	if view == nil {
+		return nil
+	}
+	var subs []*bus.Agent
+	for _, agent := range view.session.Orch.WorkingAgents() {
+		if agent.Kind == bus.KindSub {
+			subs = append(subs, agent)
+		}
+	}
+	return subs
+}
+
+func (m Model) stopLines() []string {
+	if m.stopSubmenu {
+		var lines []string
+		for index, agent := range m.stopSubs() {
+			cursor := "  "
+			name := textStyle.Render(agent.Name)
+			if index == m.stopSubCursor {
+				cursor = fgStyle(plum).Render("▍ ")
+				name = fgStyle(plum).Bold(true).Render(agent.Name)
+			}
+			lines = append(lines, cursor+name)
+		}
+		if len(lines) == 0 {
+			lines = append(lines, mutedStyle.Render("no subagents"))
+		}
+		lines = append(lines, faintStyle.Render("enter stop · esc back"))
+		return lines
+	}
+	var lines []string
+	for index, option := range m.stopMenu {
+		cursor := "  "
+		label := textStyle.Render(option.label)
+		if index == m.stopCursor {
+			cursor = fgStyle(plum).Render("▍ ")
+			label = fgStyle(plum).Bold(true).Render(option.label)
+		}
+		lines = append(lines, cursor+label)
+	}
+	lines = append(lines, faintStyle.Render("tab move · enter stop · esc close"))
+	return lines
+}
+
+func (m Model) stopWidth() int {
+	width := m.width - 4
+	if width > 46 {
+		width = 46
+	}
+	if width < 20 {
+		width = 20
+	}
+	return width
+}
+
+func (m Model) stopItemRects() []rect {
+	l := m.computeLayout()
+	count := len(m.stopMenu)
+	if m.stopSubmenu {
+		count = len(m.stopSubs())
+	}
+	rects := make([]rect, 0, count)
+	width := m.stopWidth()
+	for index := 0; index < count; index++ {
+		rects = append(rects, rect{x: 3, y: l.stopY + 2 + index, w: width - 2, h: 1})
+	}
+	return rects
 }
 
 func (m Model) modelWindowStart() int {

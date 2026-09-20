@@ -27,6 +27,7 @@ type Orchestrator struct {
 
 	mu       sync.Mutex
 	runtimes map[string]*agent.Runtime
+	cancels  map[string]context.CancelFunc
 	wg       sync.WaitGroup
 	ctx      context.Context
 
@@ -53,6 +54,7 @@ func New(cfg config.Config) (*Orchestrator, error) {
 		bus:      bus.New(st),
 		store:    st,
 		runtimes: map[string]*agent.Runtime{},
+		cancels:  map[string]context.CancelFunc{},
 		security: cfg.Security,
 	}, nil
 }
@@ -161,7 +163,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 		o.bus.SetState(chief, bus.StateIdle, "")
 		return nil
 	}
-	o.launch(chief, func() error { return runtime.RunChief(ctx, o.cfg.Goal) })
+	o.launch(chief, func(runCtx context.Context) error { return runtime.RunChief(runCtx, o.cfg.Goal) })
 	return nil
 }
 
@@ -179,25 +181,84 @@ func (o *Orchestrator) Submit(text string) error {
 	switch chief.State() {
 	case bus.StateIdle, bus.StateError:
 		o.store.AddTask("user", chief.Name, "goal", text)
-		o.launch(chief, func() error { return runtime.RunChief(o.ctx, text) })
+		o.launch(chief, func(runCtx context.Context) error { return runtime.RunChief(runCtx, text) })
 		return nil
 	default:
 		return o.bus.Send(bus.Envelope{From: "user", To: chief.Name, Kind: "message", Text: text})
 	}
 }
 
-func (o *Orchestrator) launch(a *bus.Agent, run func() error) {
-	ctx := o.ctx
+func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
+	o.mu.Lock()
+	parent := o.ctx
+	o.mu.Unlock()
+	if parent == nil {
+		parent = context.Background()
+	}
+	runCtx, cancel := context.WithCancel(parent)
+	o.mu.Lock()
+	o.cancels[a.ID] = cancel
+	o.mu.Unlock()
 	o.wg.Add(1)
 	go func() {
 		defer o.wg.Done()
-		if err := run(); err != nil && ctx.Err() == nil {
+		defer func() {
+			o.mu.Lock()
+			delete(o.cancels, a.ID)
+			o.mu.Unlock()
+		}()
+		if err := run(runCtx); err != nil && runCtx.Err() == nil {
 			o.bus.SetState(a, bus.StateError, err.Error())
 		}
 	}()
 }
 
 func (o *Orchestrator) Wait() { o.wg.Wait() }
+
+func (o *Orchestrator) StopAgent(name string) bool {
+	a := o.bus.Get(name)
+	if a == nil {
+		return false
+	}
+	o.mu.Lock()
+	cancel := o.cancels[a.ID]
+	o.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	o.bus.Stop(a)
+	return true
+}
+
+func (o *Orchestrator) StopSubs() int {
+	count := 0
+	for _, a := range o.bus.List() {
+		if a.Kind == bus.KindSub && a.State() != bus.StateStopped && o.StopAgent(a.Name) {
+			count++
+		}
+	}
+	return count
+}
+
+func (o *Orchestrator) StopAll() int {
+	count := 0
+	for _, a := range o.bus.List() {
+		if a.State() != bus.StateStopped && o.StopAgent(a.Name) {
+			count++
+		}
+	}
+	return count
+}
+
+func (o *Orchestrator) WorkingAgents() []*bus.Agent {
+	var out []*bus.Agent
+	for _, a := range o.bus.List() {
+		if a.State() == bus.StateRunning || a.State() == bus.StateWaiting {
+			out = append(out, a)
+		}
+	}
+	return out
+}
 
 func (o *Orchestrator) newRuntime(a *bus.Agent, system, model string) *agent.Runtime {
 	env := &tools.Env{
@@ -256,7 +317,7 @@ func (o *Orchestrator) spawnSub(spec tools.SpawnSpec) (string, error) {
 	o.mu.Unlock()
 
 	o.store.AddTask("chief", name, "spawn", spec.Role)
-	o.launch(sub, func() error { return runtime.RunSub(o.ctx, spec.Task) })
+	o.launch(sub, func(runCtx context.Context) error { return runtime.RunSub(runCtx, spec.Task) })
 	return sub.Name, nil
 }
 

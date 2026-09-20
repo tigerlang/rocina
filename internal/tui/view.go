@@ -46,6 +46,9 @@ func (m Model) View() string {
 	if l.statusH > 0 {
 		sections = append(sections, fitHeight(m.renderStatus(l), l.statusH))
 	}
+	if l.stopH > 0 {
+		sections = append(sections, fitHeight(m.renderStopPanel(l), l.stopH))
+	}
 	sections = append(sections, fitHeight(m.renderComposerBlock(), l.inputH))
 	if l.belowH > 0 {
 		sections = append(sections, fitHeight("", l.belowH))
@@ -413,6 +416,20 @@ func trimTrailingSpace(s string) string {
 		return ""
 	}
 	return strings.ReplaceAll(s[:last], "\x00", " ")
+}
+
+func (m Model) renderStopPanel(l layout) string {
+	title := "STOP"
+	if m.stopSubmenu {
+		title = "STOP · subagents"
+	}
+	width := m.stopWidth()
+	box := renderFramed(labelStyle.Render(title), strings.Join(m.stopLines(), "\n"), rect{x: 0, y: 0, w: width, h: l.stopH})
+	lines := strings.Split(box, "\n")
+	for index := range lines {
+		lines[index] = "  " + lines[index]
+	}
+	return fitHeight(strings.Join(lines, "\n"), l.stopH)
 }
 
 func (m Model) renderStatus(l layout) string {

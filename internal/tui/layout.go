@@ -14,6 +14,8 @@ type layout struct {
 	aboveH  int
 	statusY int
 	statusH int
+	stopY   int
+	stopH   int
 	inputY  int
 	inputH  int
 	belowH  int
@@ -49,13 +51,17 @@ func (m Model) computeLayout() layout {
 	if view := m.activeView(); view != nil && view.started {
 		l.statusH = 2
 	}
+	l.stopH = 0
+	if m.overlay == overlayStop {
+		l.stopH = len(m.stopLines()) + 3
+	}
 
 	fullLogo := m.logoHeight()
 	l.logoH = int(math.Round(float64(fullLogo) * (1 - ease)))
 	if l.logoH < 0 {
 		l.logoH = 0
 	}
-	usable := m.height - l.inputH - l.statusH
+	usable := m.height - l.inputH - l.statusH - l.stopH
 	if usable < 0 {
 		usable = 0
 	}
@@ -65,7 +71,8 @@ func (m Model) computeLayout() layout {
 	}
 	l.aboveY = l.logoH
 	l.statusY = l.logoH + l.aboveH
-	l.inputY = l.statusY + l.statusH
+	l.stopY = l.statusY + l.statusH
+	l.inputY = l.stopY + l.stopH
 	l.belowH = m.height - l.inputY - l.inputH
 	if l.belowH < 0 {
 		l.belowH = 0
