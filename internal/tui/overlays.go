@@ -76,31 +76,33 @@ func (m Model) renderSettingsOverlay() string {
 	rows := s.settingsRows()
 	geom := m.overlayGeom(rows)
 
-	securityTab := mutedStyle.Render("security")
-	configTab := mutedStyle.Render("tui config")
-	if s.tab == 0 {
-		securityTab = fgStyle(plum).Bold(true).Render("security")
-	} else {
-		configTab = fgStyle(plum).Bold(true).Render("tui config")
+	tabs := []string{"security", "tui config", "hotkeys"}
+	labels := make([]string, len(tabs))
+	for i, name := range tabs {
+		if i == s.tab {
+			labels[i] = fgStyle(plum).Bold(true).Render(name)
+		} else {
+			labels[i] = mutedStyle.Render(name)
+		}
 	}
-	header := securityTab + "   " + configTab
+	header := strings.Join(labels, "   ")
 
 	var body strings.Builder
-	body.WriteString(header + "\n\n")
-	if s.tab == 0 {
+	body.WriteString(header + "\n")
+	switch s.tab {
+	case 0:
+		cfg := m.mgr.Config()
 		for i, item := range securityItems {
-			box := "[ ]"
 			checked := false
 			switch i {
 			case 0:
-				checked = m.mgr.Config().Security.BlockUserPaths
+				checked = cfg.Security.BlockUserPaths
 			case 1:
-				checked = m.mgr.Config().Security.AskBeforeRun
+				checked = cfg.Security.AskBeforeRun
 			}
+			box := faintStyle.Render("[ ]")
 			if checked {
 				box = goodStyle.Render("[x]")
-			} else {
-				box = faintStyle.Render("[ ]")
 			}
 			cursor := "  "
 			text := textStyle.Render(item)
@@ -111,15 +113,72 @@ func (m Model) renderSettingsOverlay() string {
 			body.WriteString(cursor + box + " " + truncate(text, geom.w-10) + "\n")
 		}
 		body.WriteString("\n" + faintStyle.Render("space/enter toggle · tab switch · esc close"))
-	} else {
+	case 1:
 		body.WriteString(s.editor.View() + "\n")
 		body.WriteString(faintStyle.Render("ctrl+s save · tab switch · esc close"))
+	default:
+		for _, line := range hotkeyLines {
+			body.WriteString(mutedStyle.Render("  "+truncate(line, geom.w-6)) + "\n")
+		}
+		body.WriteString("\n" + faintStyle.Render("tab switch · esc close"))
 	}
 	if s.status != "" {
 		body.WriteString("\n" + goodStyle.Render(truncate(s.status, geom.w-6)))
 	}
 	title := "SETTINGS   " + faintStyle.Render(configPathLabel())
 	return m.placeOverlay(renderFramed(title, body.String(), geom))
+}
+
+func (m Model) renderModelsOverlay() string {
+	geom := m.overlayGeom(len(m.models) + 1)
+	current := ""
+	if view := m.activeView(); view != nil {
+		if agent := view.session.Orch.Bus().Get(m.focusedName(view)); agent != nil {
+			current = agent.Model
+		}
+	}
+	var b strings.Builder
+	start := m.modelWindowStart()
+	shown := 0
+	if m.modelsErr != "" {
+		b.WriteString(badStyle.Render(truncate(m.modelsErr, geom.w-6)) + "\n")
+	} else if len(m.models) == 0 {
+		b.WriteString(mutedStyle.Render("loading…"))
+	}
+	for i := start; i < len(m.models); i++ {
+		if geom.y+2+shown >= geom.y+geom.h-1 {
+			break
+		}
+		name := truncate(m.models[i], geom.w-12)
+		cursor := "  "
+		styled := textStyle.Render(name)
+		if i == m.modelCursor {
+			cursor = fgStyle(plum).Render("▍ ")
+			styled = fgStyle(plum).Bold(true).Render(name)
+		}
+		mark := ""
+		if m.models[i] == current {
+			mark = goodStyle.Render(" ●")
+		}
+		b.WriteString(cursor + styled + mark + "\n")
+		shown++
+	}
+	title := "MODELS   " + faintStyle.Render("enter select · esc close")
+	return m.placeOverlay(renderFramed(title, strings.TrimRight(b.String(), "\n"), geom))
+}
+
+func (m Model) modelRects() []rect {
+	geom := m.overlayGeom(len(m.models) + 1)
+	start := m.modelWindowStart()
+	rects := make([]rect, len(m.models))
+	for i := start; i < len(m.models); i++ {
+		y := geom.y + 2 + (i - start)
+		if y >= geom.y+geom.h-1 {
+			break
+		}
+		rects[i] = rect{x: geom.x + 1, y: y, w: geom.w - 2, h: 1}
+	}
+	return rects
 }
 
 func configPathLabel() string {

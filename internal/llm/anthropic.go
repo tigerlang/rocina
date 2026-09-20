@@ -32,6 +32,42 @@ func NewAnthropic(apiKey, baseURL string) Provider {
 
 func (p *anthropicProvider) Name() string { return "claude" }
 
+func (p *anthropicProvider) Models(ctx context.Context) ([]string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/v1/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("x-api-key", p.apiKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	resp, err := p.http.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("claude: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("claude: decode models: %w", err)
+	}
+	models := make([]string, 0, len(parsed.Data))
+	for _, model := range parsed.Data {
+		if model.ID != "" {
+			models = append(models, model.ID)
+		}
+	}
+	return models, nil
+}
+
 func (p *anthropicProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	body, err := p.buildPayload(req, false)
 	if err != nil {

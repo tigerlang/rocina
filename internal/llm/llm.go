@@ -67,3 +67,8 @@ type Provider interface {
 	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
 	ChatStream(ctx context.Context, req ChatRequest, emit StreamFunc) (*ChatResponse, error)
 }
+
+// ModelLister is implemented by providers that can enumerate their models.
+type ModelLister interface {
+	Models(ctx context.Context) ([]string, error)
+}

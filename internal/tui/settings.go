@@ -15,6 +15,20 @@ var securityItems = []string{
 	"Always ask before running a terminal/file command",
 }
 
+var hotkeyLines = []string{
+	"enter                send",
+	"shift+enter/ctrl+j   newline",
+	"tab / shift+tab      switch agent",
+	"ctrl+n               new session",
+	"ctrl+l               sessions (d delete)",
+	"ctrl+o               settings",
+	"ctrl+a               pick a model",
+	"wheel                scroll chat",
+	"click thinking       expand reasoning",
+	"click agent card     focus agent",
+	"ctrl+c               quit",
+}
+
 type settingsState struct {
 	tab    int
 	cursor int
@@ -85,7 +99,7 @@ func (s *settingsState) handleKey(msg tea.KeyMsg, m *Model) (bool, tea.Cmd) {
 		m.overlay = overlayNone
 		return true, nil
 	case "tab", "shift+tab":
-		s.tab = (s.tab + 1) % 2
+		s.tab = (s.tab + 1) % 3
 		return true, nil
 	}
 	if s.tab == 0 {
@@ -103,13 +117,16 @@ func (s *settingsState) handleKey(msg tea.KeyMsg, m *Model) (bool, tea.Cmd) {
 		}
 		return true, nil
 	}
-	if msg.String() == "ctrl+s" {
-		m.saveConfigEditor()
-		return true, nil
+	if s.tab == 1 {
+		if msg.String() == "ctrl+s" {
+			m.saveConfigEditor()
+			return true, nil
+		}
+		updated, cmd := s.editor.Update(msg)
+		s.editor = updated
+		return true, cmd
 	}
-	updated, cmd := s.editor.Update(msg)
-	s.editor = updated
-	return true, cmd
+	return true, nil
 }
 
 func (s *settingsState) handleMouse(msg tea.MouseMsg, m *Model) tea.Cmd {
@@ -125,14 +142,21 @@ func (s *settingsState) handleMouse(msg tea.MouseMsg, m *Model) tea.Cmd {
 		}
 		return nil
 	}
-	updated, cmd := s.editor.Update(msg)
-	s.editor = updated
-	return cmd
+	if s.tab == 1 {
+		updated, cmd := s.editor.Update(msg)
+		s.editor = updated
+		return cmd
+	}
+	return nil
 }
 
 func (s *settingsState) settingsRows() int {
-	if s.tab == 0 {
+	switch s.tab {
+	case 0:
 		return len(securityItems) + 4
+	case 1:
+		return s.editor.Height() + 5
+	default:
+		return len(hotkeyLines) + 4
 	}
-	return s.editor.Height() + 5
 }

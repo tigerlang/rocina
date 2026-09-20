@@ -76,10 +76,32 @@ func buildProvider(cfg config.Config) (llm.Provider, error) {
 	}
 }
 
-func (o *Orchestrator) Bus() *bus.Bus          { return o.bus }
-func (o *Orchestrator) Store() *store.Store    { return o.store }
-func (o *Orchestrator) Config() config.Config  { return o.cfg }
+func (o *Orchestrator) Bus() *bus.Bus       { return o.bus }
+func (o *Orchestrator) Store() *store.Store { return o.store }
+func (o *Orchestrator) Config() config.Config {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.cfg
+}
 func (o *Orchestrator) Provider() llm.Provider { return o.provider }
+
+func (o *Orchestrator) SetAgentModel(name, model string) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, runtime := range o.runtimes {
+		if runtime.Agent.Name == name {
+			runtime.Model = model
+			runtime.Agent.Model = model
+			if runtime.Agent.Kind == bus.KindChief {
+				o.cfg.Model = model
+				o.cfg.ChiefModel = ""
+				o.cfg.SubModel = ""
+			}
+			return true
+		}
+	}
+	return false
+}
 
 func (o *Orchestrator) policy() tools.Policy {
 	o.secMu.RLock()

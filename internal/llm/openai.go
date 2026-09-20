@@ -35,6 +35,46 @@ func NewOpenAI(name, baseURL, apiKey string, headers map[string]string) Provider
 
 func (p *openAIProvider) Name() string { return p.name }
 
+func (p *openAIProvider) Models(ctx context.Context) ([]string, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+	for k, v := range p.headers {
+		httpReq.Header.Set(k, v)
+	}
+	resp, err := p.http.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("%s: status %d: %s", p.name, resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	var parsed struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return nil, fmt.Errorf("%s: decode models: %w", p.name, err)
+	}
+	models := make([]string, 0, len(parsed.Data))
+	for _, model := range parsed.Data {
+		if model.ID != "" {
+			models = append(models, model.ID)
+		}
+	}
+	return models, nil
+}
+
 func (p *openAIProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
 	body, err := p.buildPayload(req, false)
 	if err != nil {

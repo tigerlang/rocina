@@ -108,6 +108,25 @@ func TestAnthropicProviderRoundTrip(t *testing.T) {
 	}
 }
 
+func TestOpenAIModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/models" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		_, _ = io.WriteString(w, `{"data":[{"id":"model-b"},{"id":"model-a"}]}`)
+	}))
+	defer srv.Close()
+
+	lister, ok := llm.NewOpenAI("test", srv.URL, "k", nil).(llm.ModelLister)
+	if !ok {
+		t.Fatal("openai provider must list models")
+	}
+	models, err := lister.Models(context.Background())
+	if err != nil || len(models) != 2 {
+		t.Fatalf("models=%v err=%v", models, err)
+	}
+}
+
 func TestOpenAIStreaming(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

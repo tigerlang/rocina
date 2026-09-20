@@ -34,6 +34,7 @@ type Config struct {
 	Workspace    string   `json:"workspace"`
 	MaxSubagents int      `json:"max_subagents"`
 	MaxSteps     int      `json:"max_steps"`
+	Models       []string `json:"models,omitempty"`
 	Temperature  float64  `json:"temperature"`
 	Goal         string   `json:"goal"`
 	Headless     bool     `json:"headless"`

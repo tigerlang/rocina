@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"context"
+	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,6 +14,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"rocina/internal/bus"
+	"rocina/internal/config"
+	"rocina/internal/llm"
 	"rocina/internal/session"
 	"rocina/internal/tools"
 )
@@ -31,6 +36,11 @@ type approvalMsg struct {
 	request approvalRequest
 }
 
+type modelsMsg struct {
+	models []string
+	err    error
+}
+
 type refreshMsg struct{}
 type frameMsg struct{}
 type errMsg error
@@ -42,6 +52,7 @@ const (
 	overlaySessions
 	overlaySettings
 	overlayApproval
+	overlayModels
 )
 
 type sessionView struct {
@@ -75,6 +86,10 @@ type Model struct {
 	overlay       overlayKind
 	approval      *approvalRequest
 	sessionCursor int
+
+	models      []string
+	modelsErr   string
+	modelCursor int
 
 	settings settingsState
 }
@@ -201,6 +216,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.overlay = overlayApproval
 		}
 		return m, nil
+	case modelsMsg:
+		m.models = msg.models
+		if msg.err != nil {
+			m.modelsErr = msg.err.Error()
+		}
+		return m, nil
 	case frameMsg:
 		m.frame++
 		for _, view := range m.views {
@@ -273,9 +294,34 @@ func (m *Model) handleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		return true, nil
 	}
 
+	if m.overlay == overlayModels {
+		switch msg.String() {
+		case "esc", "ctrl+a":
+			m.overlay = overlayNone
+		case "up", "k":
+			if m.modelCursor > 0 {
+				m.modelCursor--
+			}
+		case "down", "j":
+			if m.modelCursor < len(m.models)-1 {
+				m.modelCursor++
+			}
+		case "enter":
+			m.selectModel()
+			m.overlay = overlayNone
+		}
+		return true, nil
+	}
+
 	switch msg.String() {
 	case "ctrl+c":
 		return true, tea.Quit
+	case "ctrl+a":
+		m.overlay = overlayModels
+		m.modelCursor = 0
+		m.models = nil
+		m.modelsErr = ""
+		return true, m.fetchModels()
 	case "ctrl+n":
 		m.newSession()
 		return true, nil
@@ -330,6 +376,18 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 			if r[1].contains(msg.X, msg.Y) {
 				return *m, m.resolveApproval(false)
+			}
+		}
+		return *m, nil
+	}
+
+	if m.overlay == overlayModels {
+		for index, r := range m.modelRects() {
+			if r.contains(msg.X, msg.Y) {
+				m.modelCursor = index
+				m.selectModel()
+				m.overlay = overlayNone
+				return *m, nil
 			}
 		}
 		return *m, nil
@@ -473,6 +531,67 @@ func (m *Model) switchTo(index int) {
 	m.views[index].started = true
 }
 
+func (m Model) fetchModels() tea.Cmd {
+	view := m.activeView()
+	if view == nil {
+		return nil
+	}
+	orch := view.session.Orch
+	return func() tea.Msg {
+		cfg := orch.Config()
+		list := append([]string{}, cfg.Models...)
+		if lister, ok := orch.Provider().(llm.ModelLister); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			remote, err := lister.Models(ctx)
+			if err != nil && len(list) == 0 {
+				return modelsMsg{err: err}
+			}
+			for _, model := range remote {
+				if !containsString(list, model) {
+					list = append(list, model)
+				}
+			}
+		}
+		sort.Strings(list)
+		if len(list) == 0 {
+			return modelsMsg{err: fmt.Errorf("no models available")}
+		}
+		return modelsMsg{models: list}
+	}
+}
+
+func (m *Model) selectModel() {
+	if m.modelCursor < 0 || m.modelCursor >= len(m.models) {
+		return
+	}
+	view := m.activeView()
+	if view == nil {
+		return
+	}
+	view.session.Orch.SetAgentModel(m.focusedName(view), m.models[m.modelCursor])
+}
+
+func (m Model) modelWindowStart() int {
+	rows := m.overlayGeom(len(m.models)+1).h - 3
+	if rows < 1 {
+		rows = 1
+	}
+	if m.modelCursor >= rows {
+		return m.modelCursor - rows + 1
+	}
+	return 0
+}
+
+func containsString(list []string, value string) bool {
+	for _, item := range list {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Model) cycleAgent(direction int) {
 	view := m.activeView()
 	if view == nil {
@@ -491,6 +610,13 @@ func (m Model) activeView() *sessionView {
 		return nil
 	}
 	return m.views[m.active]
+}
+
+func (m Model) activeConfig() config.Config {
+	if view := m.activeView(); view != nil {
+		return view.session.Orch.Config()
+	}
+	return m.mgr.Config()
 }
 
 func (m Model) viewByID(id string) *sessionView {

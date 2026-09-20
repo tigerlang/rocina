@@ -25,6 +25,8 @@ func (m Model) View() string {
 		return m.renderSettingsOverlay()
 	case overlayApproval:
 		return m.renderApprovalOverlay()
+	case overlayModels:
+		return m.renderModelsOverlay()
 	}
 
 	view := m.activeView()
@@ -413,9 +415,9 @@ func (m Model) renderHint() string {
 	if m.err != nil {
 		return lipgloss.NewStyle().MaxWidth(m.width).Render(badStyle.Render("  error: " + m.err.Error()))
 	}
-	cfg := m.mgr.Config()
+	cfg := m.activeConfig()
 	prefix := cfg.Provider + " · " + cfg.Model + "   "
-	hint := "enter send · shift+enter/ctrl+j newline · tab agent · ctrl+n new · ctrl+l sessions · ctrl+o settings"
+	hint := "enter send · shift+enter/ctrl+j newline · tab agent · ctrl+a models · ctrl+n new · ctrl+l sessions · ctrl+o settings"
 	return lipgloss.NewStyle().MaxWidth(m.width).Render(mutedStyle.Render("  " + prefix + hint))
 }
 
