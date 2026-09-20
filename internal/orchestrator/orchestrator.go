@@ -112,6 +112,57 @@ func (o *Orchestrator) SetSubModel(model string) {
 	}
 }
 
+func (o *Orchestrator) SetConfig(cfg config.Config) {
+	o.mu.Lock()
+	cfg.DataDir = o.cfg.DataDir
+	o.cfg = cfg
+	if provider, err := buildProvider(cfg); err == nil {
+		o.provider = provider
+	}
+	for _, runtime := range o.runtimes {
+		runtime.Provider = o.provider
+		runtime.MaxSteps = o.cfg.MaxSteps
+		runtime.Temperature = o.cfg.Temperature
+		runtime.Env.Workspace = o.cfg.Workspace
+		if runtime.Agent.Kind == bus.KindChief {
+			runtime.Model = o.chiefModel()
+		} else {
+			runtime.Model = o.subModel()
+		}
+	}
+	o.mu.Unlock()
+	o.SetSecurity(cfg.Security)
+}
+
+type Stats struct {
+	ContextTokens int
+	TotalTokens   int
+	Requests      int
+	Cost          float64
+	CostKnown     bool
+	RPM           float64
+}
+
+func (o *Orchestrator) Stats() Stats {
+	o.mu.Lock()
+	runtimes := make([]*agent.Runtime, 0, len(o.runtimes))
+	for _, runtime := range o.runtimes {
+		runtimes = append(runtimes, runtime)
+	}
+	o.mu.Unlock()
+	var out Stats
+	for _, runtime := range runtimes {
+		usage := runtime.Usage()
+		out.ContextTokens += usage.ContextTokens
+		out.TotalTokens += usage.TotalTokens
+		out.Requests += usage.Requests
+		out.Cost += usage.Cost
+		out.CostKnown = out.CostKnown || usage.CostKnown
+		out.RPM += usage.RPM
+	}
+	return out
+}
+
 func (o *Orchestrator) policy() tools.Policy {
 	o.secMu.RLock()
 	defer o.secMu.RUnlock()

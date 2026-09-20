@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"rocina/internal/bus"
+	"rocina/internal/orchestrator"
 	"rocina/internal/version"
 )
 
@@ -447,7 +448,33 @@ func (m Model) renderStatus(l layout) string {
 		}
 		lines = append(lines, mutedStyle.Render("  agent now in: ")+fgStyle(colorAccent2).Render(truncate(path, width)))
 	}
+	if l.statusH > 2 {
+		if view := m.activeView(); view != nil {
+			st := view.session.Orch.Stats()
+			stats := fmt.Sprintf("ctx %s · total %s · %d req · %.0f rpm · %s",
+				humanTokens(st.ContextTokens), humanTokens(st.TotalTokens), st.Requests, st.RPM, costLabel(st))
+			lines = append(lines, mutedStyle.Render("  tokens: ")+fgStyle(sky).Render(stats))
+		}
+	}
 	return fitHeight(strings.Join(lines, "\n"), l.statusH)
+}
+
+func humanTokens(count int) string {
+	switch {
+	case count >= 1_000_000:
+		return fmt.Sprintf("%.1fM", float64(count)/1_000_000)
+	case count >= 1_000:
+		return fmt.Sprintf("%.1fk", float64(count)/1_000)
+	default:
+		return fmt.Sprintf("%d", count)
+	}
+}
+
+func costLabel(st orchestrator.Stats) string {
+	if !st.CostKnown {
+		return "cost n/a"
+	}
+	return fmt.Sprintf("$%.6f", st.Cost)
 }
 
 func (m Model) hintLines() []string {

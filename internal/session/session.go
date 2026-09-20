@@ -209,6 +209,18 @@ func (m *Manager) DeleteSession(sessionID string) bool {
 
 func (m *Manager) Config() config.Config { return m.base }
 
+func (m *Manager) ApplyConfig(cfg config.Config) {
+	m.mu.Lock()
+	cfg.DataDir = m.base.DataDir
+	m.base = cfg
+	items := make([]*Session, len(m.items))
+	copy(items, m.items)
+	m.mu.Unlock()
+	for _, s := range items {
+		s.Orch.SetConfig(cfg)
+	}
+}
+
 func (m *Manager) ApplySecurity(sec config.Security) {
 	m.mu.Lock()
 	m.base.Security = sec

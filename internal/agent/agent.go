@@ -34,6 +34,21 @@ type Runtime struct {
 	mu             sync.Mutex
 	history        []llm.Message
 	sentSinceInput bool
+	totalTokens    int
+	contextTokens  int
+	requests       int
+	cost           float64
+	costKnown      bool
+	requestTimes   []time.Time
+}
+
+type Usage struct {
+	ContextTokens int
+	TotalTokens   int
+	Requests      int
+	Cost          float64
+	CostKnown     bool
+	RPM           float64
 }
 
 func (r *Runtime) History() []llm.Message {
@@ -81,6 +96,45 @@ func (r *Runtime) persistHistory() {
 		return
 	}
 	_ = os.Rename(tmp, r.HistoryPath)
+}
+
+func (r *Runtime) recordUsage(usage llm.Usage) {
+	now := time.Now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	total := usage.TotalTokens
+	if total == 0 {
+		total = usage.PromptTokens + usage.CompletionTokens
+	}
+	r.totalTokens += total
+	r.contextTokens = usage.PromptTokens
+	r.requests++
+	r.cost += usage.CostUSD
+	if usage.CostUSD > 0 {
+		r.costKnown = true
+	}
+	r.requestTimes = append(r.requestTimes, now)
+	cut := now.Add(-time.Minute)
+	trimmed := r.requestTimes[:0]
+	for _, at := range r.requestTimes {
+		if at.After(cut) {
+			trimmed = append(trimmed, at)
+		}
+	}
+	r.requestTimes = trimmed
+}
+
+func (r *Runtime) Usage() Usage {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return Usage{
+		ContextTokens: r.contextTokens,
+		TotalTokens:   r.totalTokens,
+		Requests:      r.requests,
+		Cost:          r.cost,
+		CostKnown:     r.costKnown,
+		RPM:           float64(len(r.requestTimes)),
+	}
 }
 
 func (r *Runtime) appendUser(text string) {
@@ -210,6 +264,7 @@ func (r *Runtime) step(ctx context.Context, allowTools bool) (bool, error) {
 	if reasoned {
 		r.Bus.Publish(bus.Event{Type: "reasoning.done", Agent: r.Agent.Name})
 	}
+	r.recordUsage(resp.Usage)
 
 	r.mu.Lock()
 	r.history = append(r.history, resp.Message)

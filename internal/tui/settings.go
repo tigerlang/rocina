@@ -89,8 +89,8 @@ func (m *Model) saveConfigEditor() {
 		m.settings.status = err.Error()
 		return
 	}
-	m.mgr.ApplySecurity(cfg.Security)
-	m.settings.status = "saved " + config.UserConfigPath() + " (provider/model apply on restart)"
+	m.mgr.ApplyConfig(cfg)
+	m.settings.status = "saved and applied: " + config.UserConfigPath()
 }
 
 func (s *settingsState) handleKey(msg tea.KeyMsg, m *Model) (bool, tea.Cmd) {

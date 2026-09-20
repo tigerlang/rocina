@@ -214,6 +214,9 @@ func (p *openAIProvider) buildPayload(req ChatRequest, stream bool) ([]byte, err
 		payload["stream"] = true
 		payload["stream_options"] = map[string]any{"include_usage": true}
 	}
+	if p.name == "openrouter" {
+		payload["usage"] = map[string]any{"include": true}
+	}
 	return json.Marshal(payload)
 }
 
@@ -270,8 +273,10 @@ type openAIChunk struct {
 		} `json:"delta"`
 	} `json:"choices"`
 	Usage *struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
+		PromptTokens     int     `json:"prompt_tokens"`
+		CompletionTokens int     `json:"completion_tokens"`
+		TotalTokens      int     `json:"total_tokens"`
+		Cost             float64 `json:"cost"`
 	} `json:"usage"`
 }
 
@@ -285,7 +290,16 @@ type openAIAssembler struct {
 
 func (a *openAIAssembler) consume(chunk openAIChunk, emit StreamFunc) {
 	if chunk.Usage != nil {
-		a.usage = Usage{PromptTokens: chunk.Usage.PromptTokens, CompletionTokens: chunk.Usage.CompletionTokens}
+		total := chunk.Usage.TotalTokens
+		if total == 0 {
+			total = chunk.Usage.PromptTokens + chunk.Usage.CompletionTokens
+		}
+		a.usage = Usage{
+			PromptTokens:     chunk.Usage.PromptTokens,
+			CompletionTokens: chunk.Usage.CompletionTokens,
+			TotalTokens:      total,
+			CostUSD:          chunk.Usage.Cost,
+		}
 	}
 	if len(chunk.Choices) == 0 {
 		return
@@ -361,8 +375,10 @@ func parseOpenAIResponse(name string, data []byte) (*ChatResponse, error) {
 			} `json:"message"`
 		} `json:"choices"`
 		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
+			PromptTokens     int     `json:"prompt_tokens"`
+			CompletionTokens int     `json:"completion_tokens"`
+			TotalTokens      int     `json:"total_tokens"`
+			Cost             float64 `json:"cost"`
 		} `json:"usage"`
 		Error *struct {
 			Message string `json:"message"`
@@ -381,8 +397,17 @@ func parseOpenAIResponse(name string, data []byte) (*ChatResponse, error) {
 	for _, tc := range parsed.Choices[0].Message.ToolCalls {
 		out.ToolCalls = append(out.ToolCalls, ToolCall{ID: tc.ID, Name: tc.Function.Name, Arguments: tc.Function.Arguments})
 	}
+	total := parsed.Usage.TotalTokens
+	if total == 0 {
+		total = parsed.Usage.PromptTokens + parsed.Usage.CompletionTokens
+	}
 	return &ChatResponse{
 		Message: out,
-		Usage:   Usage{PromptTokens: parsed.Usage.PromptTokens, CompletionTokens: parsed.Usage.CompletionTokens},
+		Usage: Usage{
+			PromptTokens:     parsed.Usage.PromptTokens,
+			CompletionTokens: parsed.Usage.CompletionTokens,
+			TotalTokens:      total,
+			CostUSD:          parsed.Usage.Cost,
+		},
 	}, nil
 }

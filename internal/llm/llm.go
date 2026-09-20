@@ -45,6 +45,8 @@ type ChatRequest struct {
 type Usage struct {
 	PromptTokens     int
 	CompletionTokens int
+	TotalTokens      int
+	CostUSD          float64
 }
 
 type ChatResponse struct {

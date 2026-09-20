@@ -357,6 +357,7 @@ func (a *anthropicAssembler) response() *ChatResponse {
 		}
 		message.ToolCalls = append(message.ToolCalls, call)
 	}
+	a.usage.TotalTokens = a.usage.PromptTokens + a.usage.CompletionTokens
 	return &ChatResponse{Message: message, Usage: a.usage}
 }
 
@@ -400,6 +401,10 @@ func parseAnthropicResponse(data []byte) (*ChatResponse, error) {
 	out.Content = text.String()
 	return &ChatResponse{
 		Message: out,
-		Usage:   Usage{PromptTokens: parsed.Usage.InputTokens, CompletionTokens: parsed.Usage.OutputTokens},
+		Usage: Usage{
+			PromptTokens:     parsed.Usage.InputTokens,
+			CompletionTokens: parsed.Usage.OutputTokens,
+			TotalTokens:      parsed.Usage.InputTokens + parsed.Usage.OutputTokens,
+		},
 	}, nil
 }
