@@ -156,6 +156,7 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	o.ctx = ctx
 	chief := o.bus.Register("chief", bus.KindChief, "chief", "", o.chiefModel())
 	runtime := o.newRuntime(chief, chiefPrompt(), o.chiefModel())
+	runtime.LoadHistory()
 	o.mu.Lock()
 	o.runtimes[chief.ID] = runtime
 	o.mu.Unlock()
@@ -284,6 +285,7 @@ func (o *Orchestrator) newRuntime(a *bus.Agent, system, model string) *agent.Run
 		Store:       o.store,
 		Registry:    tools.NewRegistry(a.Kind),
 		Env:         env,
+		HistoryPath: filepath.Join(o.cfg.DataDir, "agents", a.Name+".json"),
 	}
 }
 

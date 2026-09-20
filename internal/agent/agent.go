@@ -2,7 +2,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +29,8 @@ type Runtime struct {
 	Registry *tools.Registry
 	Env      *tools.Env
 
+	HistoryPath string
+
 	mu             sync.Mutex
 	history        []llm.Message
 	sentSinceInput bool
@@ -43,6 +48,39 @@ func (r *Runtime) Restore(messages []llm.Message) {
 	r.mu.Lock()
 	r.history = append([]llm.Message(nil), messages...)
 	r.mu.Unlock()
+}
+
+func (r *Runtime) LoadHistory() {
+	if r.HistoryPath == "" {
+		return
+	}
+	data, err := os.ReadFile(r.HistoryPath)
+	if err != nil {
+		return
+	}
+	var messages []llm.Message
+	if err := json.Unmarshal(data, &messages); err != nil {
+		return
+	}
+	r.Restore(messages)
+}
+
+func (r *Runtime) persistHistory() {
+	if r.HistoryPath == "" {
+		return
+	}
+	data, err := json.MarshalIndent(r.History(), "", "  ")
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(r.HistoryPath), 0o755); err != nil {
+		return
+	}
+	tmp := r.HistoryPath + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, r.HistoryPath)
 }
 
 func (r *Runtime) appendUser(text string) {
@@ -179,6 +217,7 @@ func (r *Runtime) step(ctx context.Context, allowTools bool) (bool, error) {
 	r.mu.Unlock()
 
 	if len(calls) == 0 {
+		r.persistHistory()
 		return true, nil
 	}
 	for _, call := range calls {
@@ -192,6 +231,7 @@ func (r *Runtime) step(ctx context.Context, allowTools bool) (bool, error) {
 		})
 		r.mu.Unlock()
 	}
+	r.persistHistory()
 	return false, nil
 }
 

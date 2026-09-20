@@ -71,6 +71,7 @@ type sessionView struct {
 	scroll   int
 	ease     float64
 	started  bool
+	dirty    bool
 }
 
 type Model struct {
@@ -160,7 +161,7 @@ func New(mgr *session.Manager) Model {
 }
 
 func (m *Model) attach(s *session.Session) *sessionView {
-	view := &sessionView{session: s, chats: map[string][]Block{}, expanded: map[string]bool{}, cwd: map[string]string{}}
+	view := &sessionView{session: s, chats: loadChats(s), expanded: map[string]bool{}, cwd: map[string]string{}}
 	go func(id string, events <-chan bus.Event) {
 		for ev := range events {
 			m.eventCh <- eventMsg{session: id, event: ev}
@@ -254,6 +255,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if math.Abs(target-view.ease) < 0.005 {
 				view.ease = target
 			}
+		}
+		if m.frame%40 == 0 {
+			m.flushChats()
 		}
 		return m, frameTick()
 	case errMsg:
@@ -350,6 +354,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 
 	switch msg.String() {
 	case "ctrl+c":
+		m.flushChats()
 		return true, tea.Quit
 	case "ctrl+a":
 		m.overlay = overlayModels
@@ -954,6 +959,16 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 	case "cwd":
 		if ev.Text != "" {
 			view.cwd[ev.Agent] = ev.Text
+		}
+	}
+	view.dirty = true
+}
+
+func (m *Model) flushChats() {
+	for _, view := range m.views {
+		if view.dirty {
+			saveChats(view.session, view.chats)
+			view.dirty = false
 		}
 	}
 }

@@ -9,14 +9,14 @@ import (
 )
 
 type Block struct {
-	Kind   string
-	Text   string
-	Tool   string
-	Args   string
-	Result string
-	CallID string
-	Done   bool
-	At     time.Time
+	Kind   string    `json:"kind"`
+	Text   string    `json:"text,omitempty"`
+	Tool   string    `json:"tool,omitempty"`
+	Args   string    `json:"args,omitempty"`
+	Result string    `json:"result,omitempty"`
+	CallID string    `json:"call_id,omitempty"`
+	Done   bool      `json:"done"`
+	At     time.Time `json:"at"`
 }
 
 func wrapText(s string, width int) []string {
