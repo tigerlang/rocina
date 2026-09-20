@@ -26,7 +26,9 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
 - Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions persist across restarts
   (`<data_dir>/sessions.json`) and are removed only with `d` in the session list.
 - Settings overlay (`ctrl+o` or "settings" in the sidebar) with Security, a config editor
-  and a Hotkeys tab.
+  that applies on save, and a Hotkeys tab.
+- Per-session usage: context and total tokens, requests per minute, and cost when the
+  provider reports it.
 - Model picker in the TUI (`ctrl+a`): lists the provider's models plus any `models` from
   the config. `tab` switches the target between `chief` and `subagents`; the choice is
   applied live and saved to the config.

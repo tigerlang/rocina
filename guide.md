@@ -173,6 +173,13 @@ Above the input, `you are in:` shows the directory Rocina was started from. In a
 `$PWD` after every command, so once the agent creates a folder and `cd`s into it the path
 updates in real time. Before the shell is used it falls back to the absolute workspace.
 
+## Usage
+
+Under the input the session shows `ctx` (prompt tokens of the last request), `total`
+tokens, request count, requests per minute, and cost. Token counts come from the usage
+each provider reports per request; cost is shown only when the provider reports it (for
+example OpenRouter), otherwise it reads `cost n/a`.
+
 ## Stopping agents
 
 Press `esc` twice while at least one agent is running or waiting to open a small panel
@@ -193,8 +200,8 @@ subagents by name. Stopping cancels the agent's context and marks it stopped.
     `bash_tool`, `terminal_tool`, `write_file` and `edit_file`. In headless mode with no
     approver such calls are denied.
 - **tui config** — an embedded editor pre-filled with the full config. `ctrl+s` writes it
-  to `~/.config/rocina/config.json`. Security applies at once; provider/model changes
-  apply on the next start.
+  to `~/.config/rocina/config.json` and applies it immediately: the provider is rebuilt
+  and the model, workspace, limits and security are updated for every running session.
 - **hotkeys** — a read-only list of every keybinding.
 
 ## Security
