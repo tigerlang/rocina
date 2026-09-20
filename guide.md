@@ -103,10 +103,12 @@ Keep the key out of git when the config lives in a repository.
 - `-chief-model` overrides the chief only; use a stronger model for planning.
 - `-sub-model` overrides every subagent; use a cheaper model for execution.
 - `spawn_subagent` accepts a `model` argument for one specific subagent.
-- `ctrl+a` in the TUI opens a picker with the provider's models (from its models
-  endpoint) merged with the `models` list in the config; the choice applies to the
-  session immediately.
-- The active provider and model are shown top-right of the composer frame.
+- `ctrl+a` opens a picker with the provider's models (from its models endpoint) merged
+  with the `models` list in the config. `tab` switches the target between `chief` and
+  `subagents` (shown in the title); `enter` or click applies it live and writes the chosen
+  model to the config file.
+- The active provider and model are shown under the input, along with the working
+  directories.
 
 ## Tools
 
@@ -146,9 +148,10 @@ launcher to the session layout.
     shift+enter/ctrl+j   newline
     tab / shift+tab      switch agent
     ctrl+n               new session
-    ctrl+l               list and switch sessions
-    ctrl+o               settings (or click the gear in the sidebar)
-    ctrl+a               pick a model
+    ctrl+l               list, switch and delete sessions (d)
+    ctrl+o               settings (security, config, hotkeys)
+    ctrl+a               pick a model (tab switches chief / subagents)
+    esc esc              stop agents
     wheel                scroll the focused chat
     click "thinking"     expand or collapse the reasoning
     click an agent card  focus that agent
@@ -157,13 +160,29 @@ launcher to the session layout.
 ## Sessions
 
 `ctrl+n` opens a fresh session: a new chief, bus and store under
-`<data_dir>/sessions/<id>`. `ctrl+l` lists every session; select with arrows and `enter`,
-or click a row. `d` (or `delete`/`backspace`) removes the selected session and stops its
-agents. Each session keeps its own chats, agents and history.
+`<data_dir>/sessions/<id>`. Sessions persist across restarts: the list and the active one
+are stored in `<data_dir>/sessions.json` and restored on start. `ctrl+l` lists every
+session; select with arrows and `enter`, or click a row. `d` (or `delete`/`backspace`)
+removes the selected session, stops its agents and deletes its directory. Each session
+keeps its own chats, agents and history.
+
+## Working directories
+
+Above the input, `you are in:` shows the directory Rocina was started from. In a session,
+`agent now in:` shows the focused agent's live shell directory: `terminal_tool` reads
+`$PWD` after every command, so once the agent creates a folder and `cd`s into it the path
+updates in real time. Before the shell is used it falls back to the absolute workspace.
+
+## Stopping agents
+
+Press `esc` twice while at least one agent is running or waiting to open a small panel
+above the input. `tab` / arrows / mouse pick `chief`, `Subagent…`, `all subagents` or
+`all agents`; `enter` stops, `esc` closes. `Subagent…` opens the list of running
+subagents by name. Stopping cancels the agent's context and marks it stopped.
 
 ## Settings
 
-`ctrl+o` or the sidebar gear opens the settings overlay.
+`ctrl+o` or the sidebar "settings" opens the settings overlay.
 
 - **security** — two toggles, applied immediately and saved to
   `~/.config/rocina/config.json`:
@@ -176,6 +195,7 @@ agents. Each session keeps its own chats, agents and history.
 - **tui config** — an embedded editor pre-filled with the full config. `ctrl+s` writes it
   to `~/.config/rocina/config.json`. Security applies at once; provider/model changes
   apply on the next start.
+- **hotkeys** — a read-only list of every keybinding.
 
 ## Security
 

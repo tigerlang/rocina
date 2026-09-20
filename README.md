@@ -19,10 +19,17 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   and fenced code blocks as filled gray blocks), gray collapsible `thinking`, and every
   tool call in a filled gray block with the actual command and result. A right sidebar
   keeps a minimised chat for every agent.
-- Multiple sessions (`ctrl+n`, `ctrl+l`) and a settings overlay (`ctrl+o` or the gear)
-  with a Security tab and an in-app config editor.
+- Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions persist across restarts
+  (`<data_dir>/sessions.json`) and are removed only with `d` in the session list.
+- Settings overlay (`ctrl+o` or "settings" in the sidebar) with Security, a config editor
+  and a Hotkeys tab.
 - Model picker in the TUI (`ctrl+a`): lists the provider's models plus any `models` from
-  the config and switches the session model live.
+  the config. `tab` switches the target between `chief` and `subagents`; the choice is
+  applied live and saved to the config.
+- Working directories: `you are in:` shows the launch directory, and `agent now in:` tracks
+  the focused agent's live shell directory in real time.
+- Stop agents: press `esc` twice to interrupt the chief, a subagent, all subagents or all
+  agents from a small panel above the input.
 - Security: block user paths on Linux, Windows and macOS, and optionally require
   approval for every terminal/file command.
 
@@ -55,8 +62,9 @@ per-agent models. Keep `rocina.json` out of version control when it holds a key.
     tab / shift+tab      switch agent
     ctrl+n               new session
     ctrl+l               list, switch and delete sessions (d)
-    ctrl+o               settings (or click "settings" in the sidebar)
-    ctrl+a               pick a model
+    ctrl+o               settings (security, config, hotkeys)
+    ctrl+a               pick a model (tab switches chief / subagents)
+    esc esc              stop agents
     wheel                scroll the focused chat
     click "thinking"     expand or collapse the reasoning
     click an agent card  focus that agent
