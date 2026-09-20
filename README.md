@@ -1,5 +1,7 @@
 # Rocina
 
+![Rocina banner](rocina.gif)
+
 Rocina turns any tool-calling LLM into a team: one chief agent plans and delegates,
 subagents execute with real tools. It ships with a Bubble Tea TUI and a headless mode.
 
