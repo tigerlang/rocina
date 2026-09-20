@@ -21,6 +21,8 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   keeps a minimised chat for every agent.
 - Multiple sessions (`ctrl+n`, `ctrl+l`) and a settings overlay (`ctrl+o` or the gear)
   with a Security tab and an in-app config editor.
+- Model picker in the TUI (`ctrl+a`): lists the provider's models plus any `models` from
+  the config and switches the session model live.
 - Security: block user paths on Linux, Windows and macOS, and optionally require
   approval for every terminal/file command.
 
@@ -54,6 +56,7 @@ per-agent models. Keep `rocina.json` out of version control when it holds a key.
     ctrl+n               new session
     ctrl+l               list, switch and delete sessions (d)
     ctrl+o               settings (or click "settings" in the sidebar)
+    ctrl+a               pick a model
     wheel                scroll the focused chat
     click "thinking"     expand or collapse the reasoning
     click an agent card  focus that agent

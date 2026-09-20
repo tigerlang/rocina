@@ -49,6 +49,7 @@ Discovery order: `./rocina.json`, then `~/.config/rocina/config.json`. An explic
       "data_dir": "/home/you/.rocina",
       "max_subagents": 4,
       "max_steps": 40,
+      "models": ["model-a", "model-b"],
       "temperature": 0.2
     }
 
@@ -102,6 +103,9 @@ Keep the key out of git when the config lives in a repository.
 - `-chief-model` overrides the chief only; use a stronger model for planning.
 - `-sub-model` overrides every subagent; use a cheaper model for execution.
 - `spawn_subagent` accepts a `model` argument for one specific subagent.
+- `ctrl+a` in the TUI opens a picker with the provider's models (from its models
+  endpoint) merged with the `models` list in the config; the choice applies to the
+  session immediately.
 - The active provider and model are shown top-right of the composer frame.
 
 ## Tools
@@ -144,6 +148,7 @@ launcher to the session layout.
     ctrl+n               new session
     ctrl+l               list and switch sessions
     ctrl+o               settings (or click the gear in the sidebar)
+    ctrl+a               pick a model
     wheel                scroll the focused chat
     click "thinking"     expand or collapse the reasoning
     click an agent card  focus that agent
