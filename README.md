@@ -1,6 +1,8 @@
 # Rocina
 
-![Rocina banner](rocina.gif)
+<p align="center">
+  <img src="rocina.gif" alt="Rocina banner">
+</p>
 
 Rocina turns any tool-calling LLM into a team: one chief agent plans and delegates,
 subagents execute with real tools. It ships with a Bubble Tea TUI and a headless mode.
