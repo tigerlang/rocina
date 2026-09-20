@@ -85,22 +85,29 @@ func (o *Orchestrator) Config() config.Config {
 }
 func (o *Orchestrator) Provider() llm.Provider { return o.provider }
 
-func (o *Orchestrator) SetAgentModel(name, model string) bool {
+func (o *Orchestrator) SetChiefModel(model string) {
 	o.mu.Lock()
 	defer o.mu.Unlock()
+	o.cfg.Model = model
+	o.cfg.ChiefModel = ""
 	for _, runtime := range o.runtimes {
-		if runtime.Agent.Name == name {
+		if runtime.Agent.Kind == bus.KindChief {
 			runtime.Model = model
 			runtime.Agent.Model = model
-			if runtime.Agent.Kind == bus.KindChief {
-				o.cfg.Model = model
-				o.cfg.ChiefModel = ""
-				o.cfg.SubModel = ""
-			}
-			return true
 		}
 	}
-	return false
+}
+
+func (o *Orchestrator) SetSubModel(model string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.cfg.SubModel = model
+	for _, runtime := range o.runtimes {
+		if runtime.Agent.Kind == bus.KindSub {
+			runtime.Model = model
+			runtime.Agent.Model = model
+		}
+	}
 }
 
 func (o *Orchestrator) policy() tools.Policy {

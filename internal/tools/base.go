@@ -92,6 +92,9 @@ func runTerminal(ctx context.Context, env *Env, args json.RawMessage) (string, e
 		return "", err
 	}
 	out, err := term.Run(ctx, in.Command)
+	if cwd := term.Cwd(); cwd != "" {
+		env.SetCwd(cwd)
+	}
 	if err != nil {
 		return out, err
 	}

@@ -133,9 +133,7 @@ func (m Model) renderModelsOverlay() string {
 	geom := m.overlayGeom(len(m.models) + 1)
 	current := ""
 	if view := m.activeView(); view != nil {
-		if agent := view.session.Orch.Bus().Get(m.focusedName(view)); agent != nil {
-			current = agent.Model
-		}
+		current = m.targetModel(view)
 	}
 	var b strings.Builder
 	start := m.modelWindowStart()
@@ -163,7 +161,11 @@ func (m Model) renderModelsOverlay() string {
 		b.WriteString(cursor + styled + mark + "\n")
 		shown++
 	}
-	title := "MODELS   " + faintStyle.Render("enter select · esc close")
+	target := "chief"
+	if m.modelTarget == 1 {
+		target = "subagents"
+	}
+	title := "MODELS · target: " + fgStyle(plum).Bold(true).Render(target) + "   " + faintStyle.Render("tab switch · enter select · esc close")
 	return m.placeOverlay(renderFramed(title, strings.TrimRight(b.String(), "\n"), geom))
 }
 

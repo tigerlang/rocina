@@ -9,12 +9,14 @@ func (r rect) contains(px, py int) bool {
 }
 
 type layout struct {
-	logoH  int
-	aboveY int
-	aboveH int
-	inputY int
-	inputH int
-	belowH int
+	logoH   int
+	aboveY  int
+	aboveH  int
+	statusY int
+	statusH int
+	inputY  int
+	inputH  int
+	belowH  int
 
 	chatX int
 	chatY int
@@ -43,13 +45,17 @@ func (m Model) computeLayout() layout {
 	if view := m.activeView(); view != nil {
 		ease = clamp01(view.ease)
 	}
+	l.statusH = 1
+	if view := m.activeView(); view != nil && view.started {
+		l.statusH = 2
+	}
 
 	fullLogo := m.logoHeight()
 	l.logoH = int(math.Round(float64(fullLogo) * (1 - ease)))
 	if l.logoH < 0 {
 		l.logoH = 0
 	}
-	usable := m.height - l.inputH
+	usable := m.height - l.inputH - l.statusH
 	if usable < 0 {
 		usable = 0
 	}
@@ -58,7 +64,8 @@ func (m Model) computeLayout() layout {
 		l.aboveH = 0
 	}
 	l.aboveY = l.logoH
-	l.inputY = l.logoH + l.aboveH
+	l.statusY = l.logoH + l.aboveH
+	l.inputY = l.statusY + l.statusH
 	l.belowH = m.height - l.inputY - l.inputH
 	if l.belowH < 0 {
 		l.belowH = 0

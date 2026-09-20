@@ -194,6 +194,31 @@ func TestBashRequiresApproval(t *testing.T) {
 	}
 }
 
+func TestTerminalTracksCwd(t *testing.T) {
+	env, b := newToolEnv(t, bus.KindSub)
+	target := t.TempDir()
+	if _, err := runTool(t, env, bus.KindSub, "terminal_tool", map[string]any{"command": "cd " + target}); err != nil {
+		t.Fatalf("terminal_tool: %v", err)
+	}
+	if env.Cwd() != target {
+		t.Fatalf("cwd=%q want %q", env.Cwd(), target)
+	}
+	found := false
+	for more := true; more; {
+		select {
+		case ev := <-b.Events():
+			if ev.Type == "cwd" && ev.Text == target {
+				found = true
+			}
+		default:
+			more = false
+		}
+	}
+	if !found {
+		t.Fatal("expected a cwd event")
+	}
+}
+
 func TestThinkTool(t *testing.T) {
 	env, _ := newToolEnv(t, bus.KindChief)
 	out, err := runTool(t, env, bus.KindChief, "think", map[string]any{"thought": "this is a greeting"})

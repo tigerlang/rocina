@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -41,6 +42,9 @@ func (m Model) View() string {
 	if l.aboveH > 0 {
 		above := fadeBlock(m.renderSession(view, l), clamp01(view.ease))
 		sections = append(sections, fitHeight(above, l.aboveH))
+	}
+	if l.statusH > 0 {
+		sections = append(sections, fitHeight(m.renderStatus(l), l.statusH))
 	}
 	sections = append(sections, fitHeight(m.renderComposerBlock(), l.inputH))
 	if l.belowH > 0 {
@@ -409,6 +413,24 @@ func trimTrailingSpace(s string) string {
 		return ""
 	}
 	return strings.ReplaceAll(s[:last], "\x00", " ")
+}
+
+func (m Model) renderStatus(l layout) string {
+	width := maxInt(8, m.width-16)
+	lines := []string{mutedStyle.Render("  you are in: ") + textStyle.Render(truncate(m.userDir, width))}
+	if l.statusH > 1 {
+		path := ""
+		if view := m.activeView(); view != nil {
+			path = view.cwd[m.focusedName(view)]
+			if path == "" {
+				if abs, err := filepath.Abs(view.session.Orch.Config().Workspace); err == nil {
+					path = abs
+				}
+			}
+		}
+		lines = append(lines, mutedStyle.Render("  agent now in: ")+fgStyle(colorAccent2).Render(truncate(path, width)))
+	}
+	return fitHeight(strings.Join(lines, "\n"), l.statusH)
 }
 
 func (m Model) hintLines() []string {

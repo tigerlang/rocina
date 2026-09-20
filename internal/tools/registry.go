@@ -33,6 +33,7 @@ type Env struct {
 
 	mu        sync.Mutex
 	terminals map[string]*Terminal
+	cwd       string
 }
 
 func (e *Env) terminal() (*Terminal, error) {
@@ -50,6 +51,27 @@ func (e *Env) terminal() (*Terminal, error) {
 	}
 	e.terminals[e.Agent.ID] = t
 	return t, nil
+}
+
+func (e *Env) SetCwd(path string) {
+	if path == "" {
+		return
+	}
+	e.mu.Lock()
+	e.cwd = path
+	e.mu.Unlock()
+	if e.Bus != nil {
+		e.Bus.Publish(bus.Event{Type: "cwd", Agent: e.Agent.Name, Text: path})
+	}
+}
+
+func (e *Env) Cwd() string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.cwd != "" {
+		return e.cwd
+	}
+	return e.Workspace
 }
 
 type Tool struct {

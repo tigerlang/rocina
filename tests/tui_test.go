@@ -54,6 +54,23 @@ func TestTUIRendersNarrow(t *testing.T) {
 	}
 }
 
+func TestTUIModelPickerTabSwitchesTarget(t *testing.T) {
+	model := newTUI(t)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	if view := model.(tui.Model).View(); !strings.Contains(view, "target: chief") {
+		t.Fatalf("picker should start on chief:\n%s", view)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if view := model.(tui.Model).View(); !strings.Contains(view, "target: subagents") {
+		t.Fatalf("tab should switch to subagents:\n%s", view)
+	}
+	model, _ = model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if view := model.(tui.Model).View(); !strings.Contains(view, "target: chief") {
+		t.Fatalf("tab should switch back to chief:\n%s", view)
+	}
+}
+
 func TestTUIInputAcceptsTyping(t *testing.T) {
 	model := newTUI(t)
 	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})

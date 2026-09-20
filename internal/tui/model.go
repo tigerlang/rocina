@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -59,6 +60,7 @@ type sessionView struct {
 	session  *session.Session
 	chats    map[string][]Block
 	expanded map[string]bool
+	cwd      map[string]string
 	focus    int
 	scroll   int
 	ease     float64
@@ -87,9 +89,12 @@ type Model struct {
 	approval      *approvalRequest
 	sessionCursor int
 
+	userDir string
+
 	models      []string
 	modelsErr   string
 	modelCursor int
+	modelTarget int
 
 	settings settingsState
 }
@@ -125,10 +130,13 @@ func New(mgr *session.Manager) Model {
 	sp.Spinner = spinner.Dot
 	sp.Style = labelStyle
 
+	userDir, _ := os.Getwd()
+
 	m := Model{
 		mgr:       mgr,
 		input:     input,
 		spinner:   sp,
+		userDir:   userDir,
 		eventCh:   make(chan eventMsg, 4096),
 		approvals: make(chan approvalRequest, 16),
 		settings:  newSettings(mgr.Config()),
@@ -140,7 +148,7 @@ func New(mgr *session.Manager) Model {
 }
 
 func (m *Model) attach(s *session.Session) *sessionView {
-	view := &sessionView{session: s, chats: map[string][]Block{}, expanded: map[string]bool{}}
+	view := &sessionView{session: s, chats: map[string][]Block{}, expanded: map[string]bool{}, cwd: map[string]string{}}
 	go func(id string, events <-chan bus.Event) {
 		for ev := range events {
 			m.eventCh <- eventMsg{session: id, event: ev}
@@ -221,6 +229,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.modelsErr = msg.err.Error()
 		}
+		m.syncModelCursor()
 		return m, nil
 	case frameMsg:
 		m.frame++
@@ -298,6 +307,9 @@ func (m *Model) handleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		switch msg.String() {
 		case "esc", "ctrl+a":
 			m.overlay = overlayNone
+		case "tab", "shift+tab":
+			m.modelTarget = 1 - m.modelTarget
+			m.syncModelCursor()
 		case "up", "k":
 			if m.modelCursor > 0 {
 				m.modelCursor--
@@ -321,6 +333,12 @@ func (m *Model) handleKey(msg tea.KeyMsg) (bool, tea.Cmd) {
 		m.modelCursor = 0
 		m.models = nil
 		m.modelsErr = ""
+		m.modelTarget = 0
+		if view := m.activeView(); view != nil {
+			if agent := view.session.Orch.Bus().Get(m.focusedName(view)); agent != nil && agent.Kind == bus.KindSub {
+				m.modelTarget = 1
+			}
+		}
 		return true, m.fetchModels()
 	case "ctrl+n":
 		m.newSession()
@@ -569,7 +587,36 @@ func (m *Model) selectModel() {
 	if view == nil {
 		return
 	}
-	view.session.Orch.SetAgentModel(m.focusedName(view), m.models[m.modelCursor])
+	if m.modelTarget == 1 {
+		view.session.Orch.SetSubModel(m.models[m.modelCursor])
+		return
+	}
+	view.session.Orch.SetChiefModel(m.models[m.modelCursor])
+}
+
+func (m Model) targetModel(view *sessionView) string {
+	cfg := view.session.Orch.Config()
+	if m.modelTarget == 1 {
+		if cfg.SubModel != "" {
+			return cfg.SubModel
+		}
+		return cfg.Model
+	}
+	return cfg.Model
+}
+
+func (m *Model) syncModelCursor() {
+	view := m.activeView()
+	if view == nil {
+		return
+	}
+	current := m.targetModel(view)
+	for index, name := range m.models {
+		if name == current {
+			m.modelCursor = index
+			return
+		}
+	}
 }
 
 func (m Model) modelWindowStart() int {
@@ -663,6 +710,10 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 		finishTool(view, ev.Agent, ev.CallID, ev.Tool, ev.Text)
 	case "user":
 		view.chats[ev.Agent] = append(view.chats[ev.Agent], Block{Kind: "user", Text: ev.Text, Done: true, At: ev.At})
+	case "cwd":
+		if ev.Text != "" {
+			view.cwd[ev.Agent] = ev.Text
+		}
 	}
 }
 
