@@ -411,14 +411,27 @@ func trimTrailingSpace(s string) string {
 	return strings.ReplaceAll(s[:last], "\x00", " ")
 }
 
-func (m Model) renderHint() string {
+func (m Model) hintLines() []string {
+	width := maxInt(8, m.width-2)
 	if m.err != nil {
-		return lipgloss.NewStyle().MaxWidth(m.width).Render(badStyle.Render("  error: " + m.err.Error()))
+		return wrapText("error: "+m.err.Error(), width)
 	}
 	cfg := m.activeConfig()
-	prefix := cfg.Provider + " · " + cfg.Model + "   "
-	hint := "enter send · shift+enter/ctrl+j newline · tab agent · ctrl+a models · ctrl+n new · ctrl+l sessions · ctrl+o settings"
-	return lipgloss.NewStyle().MaxWidth(m.width).Render(mutedStyle.Render("  " + prefix + hint))
+	text := cfg.Provider + " · " + cfg.Model +
+		"    enter send · shift+enter/ctrl+j newline · tab agent · ctrl+a models · ctrl+n new · ctrl+l sessions · ctrl+o settings · ctrl+c quit"
+	return wrapText(text, width)
+}
+
+func (m Model) renderHint() string {
+	lines := m.hintLines()
+	style := mutedStyle
+	if m.err != nil {
+		style = badStyle
+	}
+	for i, line := range lines {
+		lines[i] = style.Render("  " + line)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func fadeBlock(s string, opacity float64) string {

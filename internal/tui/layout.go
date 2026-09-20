@@ -34,7 +34,11 @@ func (m Model) logoHeight() int {
 
 func (m Model) computeLayout() layout {
 	var l layout
-	l.inputH = 6
+	hintCount := len(m.hintLines())
+	if hintCount < 1 {
+		hintCount = 1
+	}
+	l.inputH = 5 + hintCount
 	ease := 0.0
 	if view := m.activeView(); view != nil {
 		ease = clamp01(view.ease)
