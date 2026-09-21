@@ -497,11 +497,14 @@ func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if l.aboveH > 0 {
-			contentW := l.chatW - 4
-			contentH := l.chatH - 2
-			_, keys := m.buildChat(view, m.focusedName(view), contentW, maxInt(1, contentH-1))
-			line := msg.Y - (l.chatY + 2)
-			if line >= 0 && line < len(keys) && keys[line] != "" && msg.X >= l.chatX+2 && msg.X < l.chatX+2+contentW {
+			contentW := l.chatW - 2
+			if contentW < 8 {
+				contentW = 8
+			}
+			contentH := l.chatH - 1
+			_, keys := m.buildChat(view, m.focusedName(view), contentW, maxInt(1, contentH))
+			line := msg.Y - (l.chatY + 1)
+			if line >= 0 && line < len(keys) && keys[line] != "" && msg.X >= l.chatX && msg.X < l.chatX+contentW {
 				view.expanded[keys[line]] = !view.expanded[keys[line]]
 			}
 		}
@@ -986,6 +989,8 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 		appendToolArgs(view, ev.Agent, ev.CallID, ev.Text)
 	case "tool.result":
 		finishTool(view, ev.Agent, ev.CallID, ev.Tool, ev.Text)
+	case "assistant.error":
+		view.chats[ev.Agent] = append(view.chats[ev.Agent], Block{Kind: "error", Text: ev.Text, Done: true, At: ev.At})
 	case "user":
 		view.chats[ev.Agent] = append(view.chats[ev.Agent], Block{Kind: "user", Text: ev.Text, Done: true, At: ev.At})
 	case "cwd":

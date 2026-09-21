@@ -42,7 +42,7 @@ func (m Model) computeLayout() layout {
 	if hintCount < 1 {
 		hintCount = 1
 	}
-	l.inputH = 5 + hintCount
+	l.inputH = 4 + hintCount
 	ease := 0.0
 	if view := m.activeView(); view != nil {
 		ease = clamp01(view.ease)
@@ -80,7 +80,10 @@ func (m Model) computeLayout() layout {
 
 	l.sideW = 0
 	if m.width >= 80 {
-		l.sideW = int(math.Round(34 * ease))
+		l.sideW = int(math.Round(26 * ease))
+	}
+	if l.sideW < 14 {
+		l.sideW = 0
 	}
 	if l.sideW > m.width/2 {
 		l.sideW = m.width / 2

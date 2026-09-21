@@ -11,6 +11,7 @@ var (
 	colorGood     = hexRGB("#A6E3A1")
 	colorWarn     = hexRGB("#F9E2AF")
 	colorBad      = hexRGB("#F38BA8")
+	colorError    = hexRGB("#EBA0A8")
 	colorAccent   = plum
 	colorAccent2  = sky
 
@@ -20,12 +21,13 @@ var (
 	goodStyle      = fgStyle(colorGood)
 	warnStyle      = fgStyle(colorWarn)
 	badStyle       = fgStyle(colorBad)
+	errorStyle     = fgStyle(colorError)
 	subtitleStyle  = fgStyle(colorMuted)
 	inputStyle     = fgStyle(colorText)
 	titleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
 	labelStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
 	focusTitle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
-	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E8E8F2"))
+	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F2F2FA")).Bold(true)
 	thinkingStyle  = fgStyle(hexRGB("#8A8FA8"))
 )
 

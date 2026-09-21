@@ -276,6 +276,10 @@ func (r *Runtime) step(ctx context.Context, allowTools bool) (bool, error) {
 		}
 	})
 	if err != nil {
+		if ctx.Err() == nil {
+			r.Bus.Publish(bus.Event{Type: "assistant.error", Agent: r.Agent.Name, Text: err.Error()})
+			r.appendUser("The provider request failed: " + err.Error() + ". Continue the task, retry or adjust your plan.")
+		}
 		return false, err
 	}
 	r.Bus.Publish(bus.Event{Type: "assistant.done", Agent: r.Agent.Name})

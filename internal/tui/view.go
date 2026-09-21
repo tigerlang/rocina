@@ -77,8 +77,10 @@ func (m Model) renderChatPanel(view *sessionView, name string, width, height int
 	if height < 3 {
 		height = 3
 	}
-	innerWidth := width - 4
-	innerHeight := height - 2
+	contentWidth := width - 2
+	if contentWidth < 8 {
+		contentWidth = 8
+	}
 
 	header := fgStyle(plum).Bold(true).Render(name)
 	if agent := view.session.Orch.Bus().Get(name); agent != nil {
@@ -86,24 +88,19 @@ func (m Model) renderChatPanel(view *sessionView, name string, width, height int
 		header += "  " + faintStyle.Render(agent.Model)
 	}
 
-	bodyHeight := innerHeight - 1
+	bodyHeight := height - 1
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
-	body, _ := m.buildChat(view, name, innerWidth, bodyHeight)
-	content := header + "\n" + strings.Join(body, "\n")
+	body, _ := m.buildChat(view, name, contentWidth, bodyHeight)
 
-	border := colorFaint
-	if !hasSidebar {
-		border = colorAccent
+	// Pad every line to the full panel width so the block keeps its size and
+	// the sidebar is pushed to the right edge regardless of the text length.
+	lines := append([]string{header}, body...)
+	for i := range lines {
+		lines[i] = padRight(lines[i], contentWidth)
 	}
-	style := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(border.hex())).
-		Padding(0, 1).
-		Width(innerWidth + 2).
-		Height(height - 2)
-	return style.Render(content)
+	return fitHeight(strings.Join(lines, "\n"), height)
 }
 
 func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]string, []string) {
@@ -151,6 +148,9 @@ func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]
 			if view.expanded[key] {
 				addText(b.Text, width-2, thinkingStyle, key)
 			}
+		case "error":
+			addLine(errorStyle.Render("provider error"), "")
+			addText(b.Text, width, errorStyle, "")
 		case "tool":
 			for _, line := range m.renderToolBox(b, width) {
 				addLine(line, "")
@@ -309,7 +309,7 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 	if height < 3 {
 		height = 3
 	}
-	innerWidth := width - 4
+	innerWidth := width - 3
 	innerHeight := height - 2
 
 	header := labelStyle.Render("AGENTS") + "  " + fgStyle(plum).Render("settings")
@@ -339,7 +339,7 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(colorFaint.hex())).
 		Padding(0, 1).
-		Width(innerWidth + 2).
+		Width(innerWidth + 1).
 		Height(height - 2)
 	return style.Render(content)
 }
@@ -365,7 +365,7 @@ func (m Model) renderComposerBlock() string {
 	width := m.width
 	lines := []string{blockLine("message", colorMuted, colorSurface2, width)}
 	body := strings.Split(m.input.View(), "\n")
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 2; i++ {
 		text := ""
 		if i < len(body) {
 			text = body[i]
