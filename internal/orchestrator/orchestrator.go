@@ -224,20 +224,31 @@ func (o *Orchestrator) Submit(text string) error {
 	if chief == nil {
 		return fmt.Errorf("no chief agent is registered")
 	}
-	o.mu.Lock()
-	runtime := o.runtimes[chief.ID]
-	o.mu.Unlock()
-	if runtime == nil {
-		return fmt.Errorf("chief runtime is missing")
+	return o.SubmitTo(chief.Name, text)
+}
+
+// SubmitTo routes a user message to a specific agent. A resting chief is
+// restarted with the text as its goal, everything else receives an envelope.
+func (o *Orchestrator) SubmitTo(target, text string) error {
+	a := o.bus.Get(target)
+	if a == nil {
+		return fmt.Errorf("unknown agent %q", target)
 	}
-	switch chief.State() {
-	case bus.StateIdle, bus.StateError:
-		o.store.AddTask("user", chief.Name, "goal", text)
-		o.launch(chief, func(runCtx context.Context) error { return runtime.RunChief(runCtx, text) })
-		return nil
-	default:
-		return o.bus.Send(bus.Envelope{From: "user", To: chief.Name, Kind: "message", Text: text})
+	if a.Kind == bus.KindChief {
+		o.mu.Lock()
+		runtime := o.runtimes[a.ID]
+		o.mu.Unlock()
+		if runtime == nil {
+			return fmt.Errorf("runtime is missing for %q", target)
+		}
+		switch a.State() {
+		case bus.StateIdle, bus.StateError:
+			o.store.AddTask("user", a.Name, "goal", text)
+			o.launch(a, func(runCtx context.Context) error { return runtime.RunChief(runCtx, text) })
+			return nil
+		}
 	}
+	return o.bus.Send(bus.Envelope{From: "user", To: a.Name, Kind: "message", Text: text})
 }
 
 func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
@@ -259,7 +270,12 @@ func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
 			delete(o.cancels, a.ID)
 			o.mu.Unlock()
 		}()
-		if err := run(runCtx); err != nil && runCtx.Err() == nil {
+		err := run(runCtx)
+		if runCtx.Err() != nil {
+			o.bus.SetState(a, bus.StateStopped, "")
+			return
+		}
+		if err != nil {
 			o.bus.SetState(a, bus.StateError, err.Error())
 		}
 	}()

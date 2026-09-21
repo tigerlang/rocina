@@ -537,17 +537,49 @@ func (m *Model) submit() {
 	if view == nil {
 		return
 	}
-	chief := "chief"
-	if c := view.session.Orch.Bus().Chief(); c != nil {
-		chief = c.Name
+	if !view.started {
+		view = m.beginSession(view)
+		if view == nil {
+			return
+		}
 	}
-	if err := view.session.Orch.Submit(text); err != nil {
+	target := m.focusedName(view)
+	if err := view.session.Orch.SubmitTo(target, text); err != nil {
 		m.err = err
 	}
-	view.chats[chief] = append(view.chats[chief], Block{Kind: "user", Text: text, Done: true, At: time.Now()})
+	view.chats[target] = append(view.chats[target], Block{Kind: "user", Text: text, Done: true, At: time.Now()})
 	view.started = true
 	view.scroll = 0
 	m.input.Reset()
+}
+
+// beginSession turns the launcher into a working session. A pristine placeholder
+// is reused; a session that already carries history gets a fresh successor so a
+// message typed on the landing page never lands in the last opened session.
+func (m *Model) beginSession(view *sessionView) *sessionView {
+	if !hasContent(view) {
+		view.started = true
+		return view
+	}
+	s, err := m.mgr.NewSession("")
+	if err != nil {
+		m.err = err
+		return nil
+	}
+	fresh := m.attach(s)
+	fresh.started = true
+	m.views = append(m.views, fresh)
+	m.active = len(m.views) - 1
+	return fresh
+}
+
+func hasContent(view *sessionView) bool {
+	for _, blocks := range view.chats {
+		if len(blocks) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) newSession() {

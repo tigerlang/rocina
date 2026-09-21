@@ -212,6 +212,9 @@ func (r *Runtime) converse(ctx context.Context) (bool, error) {
 		allowTools := step < r.MaxSteps
 		done, err := r.step(ctx, allowTools)
 		if err != nil {
+			if ctx.Err() != nil {
+				return false, ctx.Err()
+			}
 			r.Bus.SetState(r.Agent, bus.StateError, err.Error())
 			return false, err
 		}
