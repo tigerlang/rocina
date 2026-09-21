@@ -232,6 +232,12 @@ is on.
 Each tool call is journaled in the store and bumps the revision, so every agent's next
 LLM turn sees the current board.
 
+The board only shows open todos (completed ones drop off) and is capped, so context does
+not grow with the number of tasks. Routed messages (`send_to_sub`, `stop_wait`,
+`send_to_chief`) travel only through the message bus and are not duplicated on the board,
+so each payload is paid for once. While the chief waits on subagents it idles without
+spending model requests; it wakes on the next report.
+
 ## Troubleshooting
 
 - `shift+enter` does not insert a newline on most terminals: use `ctrl+j`. `shift+enter`
