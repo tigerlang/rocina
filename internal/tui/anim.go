@@ -93,6 +93,48 @@ func stripANSI(s string) string {
 	return ansiPattern.ReplaceAllString(s, "")
 }
 
+var (
+	fgTruePattern = regexp.MustCompile(`38;2;(\d+);(\d+);(\d+)`)
+	bgTruePattern = regexp.MustCompile(`48;2;(\d+);(\d+);(\d+)`)
+)
+
+// fadeANSI blends every truecolor foreground and background toward the app
+// background, preserving the rest of the formatting. Used for popup fades.
+func fadeANSI(s string, opacity float64) string {
+	opacity = clamp01(opacity)
+	if opacity >= 0.999 {
+		return s
+	}
+	blend := func(pattern *regexp.Regexp, prefix string) string {
+		return pattern.ReplaceAllStringFunc(s, func(match string) string {
+			parts := pattern.FindStringSubmatch(match)
+			r, _ := strconv.Atoi(parts[1])
+			g, _ := strconv.Atoi(parts[2])
+			b, _ := strconv.Atoi(parts[3])
+			c := mix(rgb{float64(r), float64(g), float64(b)}, bgColor, 1-opacity)
+			return fmt.Sprintf("%s%d;%d;%d", prefix, clamp8(c.r), clamp8(c.g), clamp8(c.b))
+		})
+	}
+	s = blend(bgTruePattern, "48;2;")
+	return blend(fgTruePattern, "38;2;")
+}
+
 func fgStyle(c rgb) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(c.hex()))
+}
+
+const popupFrames = 8
+
+// popupOpacity eases a freshly opened popup from transparent to solid.
+func popupOpacity(frame int) float64 {
+	return easeOut(float64(frame) / float64(popupFrames))
+}
+
+// overlayOpacity returns the current fade for popups, treating the frame right
+// after opening as transparent so a stale value never flashes.
+func (m Model) overlayOpacity() float64 {
+	if m.shownOverlay != m.overlay {
+		return 0
+	}
+	return popupOpacity(m.overlayFrame)
 }

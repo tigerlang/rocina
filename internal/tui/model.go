@@ -93,6 +93,8 @@ type Model struct {
 	approvals chan approvalRequest
 
 	overlay       overlayKind
+	shownOverlay  overlayKind
+	overlayFrame  int
 	approval      *approvalRequest
 	sessionCursor int
 
@@ -246,6 +248,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case frameMsg:
 		m.frame++
+		if m.shownOverlay != m.overlay {
+			m.shownOverlay = m.overlay
+			m.overlayFrame = 0
+		} else if m.overlayFrame < popupFrames {
+			m.overlayFrame++
+		}
 		for _, view := range m.views {
 			target := 0.0
 			if view.started {
