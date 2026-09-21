@@ -31,7 +31,7 @@ func registerBase(r *Registry) {
 			"url":       str("absolute URL"),
 			"method":    str("HTTP method, default GET"),
 			"body":      str("optional request body"),
-			"max_bytes": integer("optional response size cap, default 200000"),
+			"max_bytes": integer("optional response size cap, default 24000"),
 		}, "url")),
 		Run: runWeb,
 	})
@@ -131,19 +131,23 @@ func runWeb(ctx context.Context, env *Env, args json.RawMessage) (string, error)
 	defer resp.Body.Close()
 	limit := in.MaxBytes
 	if limit <= 0 {
-		limit = 200000
+		limit = 24000
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)))
+	if limit > 24000 {
+		limit = 24000
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("status: %d\n%s", resp.StatusCode, string(body)), nil
+	return fmt.Sprintf("status: %d\n%s", resp.StatusCode, truncateOutput(string(body))), nil
 }
 
+const outputLimit = 16000
+
 func truncateOutput(s string) string {
-	const limit = 200000
-	if len(s) <= limit {
+	if len(s) <= outputLimit {
 		return s
 	}
-	return s[:limit] + "\n...[truncated]"
+	return s[:outputLimit] + "\n...[truncated]"
 }

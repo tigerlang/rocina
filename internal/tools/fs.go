@@ -164,7 +164,7 @@ func runListDir(ctx context.Context, env *Env, args json.RawMessage) (string, er
 		names = append(names, fmt.Sprintf("%s %10d %s", kind, info.Size(), e.Name()))
 	}
 	sort.Strings(names)
-	return strings.Join(names, "\n"), nil
+	return truncateOutput(strings.Join(names, "\n")), nil
 }
 
 func runGrep(ctx context.Context, env *Env, args json.RawMessage) (string, error) {
@@ -238,5 +238,5 @@ func runGrep(ctx context.Context, env *Env, args json.RawMessage) (string, error
 	if len(matches) == 0 {
 		return "no matches", nil
 	}
-	return strings.Join(matches, "\n"), nil
+	return truncateOutput(strings.Join(matches, "\n")), nil
 }
