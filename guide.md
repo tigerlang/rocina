@@ -144,6 +144,10 @@ command) and its result. The right sidebar keeps a minimised chat per agent; `ta
 switches the focused agent. Sending the first message plays a smooth transition from the
 launcher to the session layout.
 
+Input always goes to the focused agent: `tab` to `chief`, a subagent or any other agent
+and press `enter`. On the landing page there is no focused agent yet, so the first message
+starts a new session instead of continuing the last one.
+
     enter                send
     shift+enter/ctrl+j   newline
     tab / shift+tab      switch agent

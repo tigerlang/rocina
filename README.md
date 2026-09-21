@@ -32,6 +32,8 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
 - Model picker in the TUI (`ctrl+a`): lists the provider's models plus any `models` from
   the config. `tab` switches the target between `chief` and `subagents`; the choice is
   applied live and saved to the config.
+- Messages go to the focused agent (`tab` to switch). The first message on the landing
+  page starts a new session.
 - Working directories: `you are in:` shows the launch directory, and `agent now in:` tracks
   the focused agent's live shell directory in real time.
 - Stop agents: press `esc` twice to interrupt the chief, a subagent, all subagents or all
