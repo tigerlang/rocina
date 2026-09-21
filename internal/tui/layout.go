@@ -49,7 +49,7 @@ func (m Model) computeLayout() layout {
 	}
 	l.statusH = 1
 	if view := m.activeView(); view != nil && view.started {
-		l.statusH = 3
+		l.statusH = 2
 	}
 	l.stopH = 0
 	if m.overlay == overlayStop {

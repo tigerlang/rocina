@@ -29,7 +29,16 @@ var (
 	focusTitle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
 	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F2F2FA")).Bold(true)
 	thinkingStyle  = fgStyle(hexRGB("#8A8FA8"))
+
+	// Status text sits above the composer; kept small and 15% fainter.
+	statusLabelStyle = fgStyle(dim(colorMuted, 0.85))
+	statusPathStyle  = fgStyle(dim(colorText, 0.85))
+	hintStyle        = fgStyle(dim(colorMuted, 0.85))
 )
+
+func dim(c rgb, factor float64) rgb {
+	return mix(bgColor, c, factor)
+}
 
 func stateStyle(state string) lipgloss.Style {
 	switch state {

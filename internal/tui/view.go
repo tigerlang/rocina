@@ -22,13 +22,13 @@ func (m Model) View() string {
 	}
 	switch m.overlay {
 	case overlaySessions:
-		return m.renderSessionsOverlay()
+		return fadeANSI(m.renderSessionsOverlay(), m.overlayOpacity())
 	case overlaySettings:
-		return m.renderSettingsOverlay()
+		return fadeANSI(m.renderSettingsOverlay(), m.overlayOpacity())
 	case overlayApproval:
-		return m.renderApprovalOverlay()
+		return fadeANSI(m.renderApprovalOverlay(), m.overlayOpacity())
 	case overlayModels:
-		return m.renderModelsOverlay()
+		return fadeANSI(m.renderModelsOverlay(), m.overlayOpacity())
 	}
 
 	view := m.activeView()
@@ -48,7 +48,7 @@ func (m Model) View() string {
 		sections = append(sections, fitHeight(m.renderStatus(l), l.statusH))
 	}
 	if l.stopH > 0 {
-		sections = append(sections, fitHeight(m.renderStopPanel(l), l.stopH))
+		sections = append(sections, fitHeight(fadeANSI(m.renderStopPanel(l), m.overlayOpacity()), l.stopH))
 	}
 	sections = append(sections, fitHeight(m.renderComposerBlock(), l.inputH))
 	if l.belowH > 0 {
@@ -82,12 +82,6 @@ func (m Model) renderChatPanel(view *sessionView, name string, width, height int
 		contentWidth = 8
 	}
 
-	header := fgStyle(plum).Bold(true).Render(name)
-	if agent := view.session.Orch.Bus().Get(name); agent != nil {
-		header += "  " + stateStyle(string(agent.State())).Render(string(agent.State()))
-		header += "  " + faintStyle.Render(agent.Model)
-	}
-
 	bodyHeight := height - 1
 	if bodyHeight < 1 {
 		bodyHeight = 1
@@ -96,11 +90,27 @@ func (m Model) renderChatPanel(view *sessionView, name string, width, height int
 
 	// Pad every line to the full panel width so the block keeps its size and
 	// the sidebar is pushed to the right edge regardless of the text length.
-	lines := append([]string{header}, body...)
+	lines := append([]string{m.renderAgentHeader(view, name, contentWidth)}, body...)
 	for i := range lines {
 		lines[i] = padRight(lines[i], contentWidth)
 	}
 	return fitHeight(strings.Join(lines, "\n"), height)
+}
+
+// renderAgentHeader draws the focused agent line as a filled block, echoing the
+// composer title bar with fewer details.
+func (m Model) renderAgentHeader(view *sessionView, name string, width int) string {
+	if width < 6 {
+		width = 6
+	}
+	label := fgStyle(plum).Bold(true).Render(name)
+	if agent := view.session.Orch.Bus().Get(name); agent != nil {
+		label += "  " + stateStyle(string(agent.State())).Render(string(agent.State()))
+		if agent.Model != "" {
+			label += "  " + faintStyle.Render(agent.Model)
+		}
+	}
+	return blockLine(label, colorText, colorSurface2, width)
 }
 
 func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]string, []string) {
@@ -121,8 +131,7 @@ func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]
 		key := fmt.Sprintf("%s:%d", agent, i)
 		switch b.Kind {
 		case "user":
-			addLine(fgStyle(plum).Bold(true).Render("you"), "")
-			for _, line := range renderMarkdown(b.Text, width) {
+			for _, line := range renderUserBox(b.Text, width) {
 				addLine(line, "")
 			}
 		case "text":
@@ -187,6 +196,28 @@ func (m Model) streamGlyph() string {
 type toolLine struct {
 	text string
 	fg   rgb
+}
+
+// renderUserBox draws a user message as a filled gray block with a thin purple
+// accent line on its left. Assistant output never uses this style.
+func renderUserBox(text string, width int) []string {
+	if width < 6 {
+		width = 6
+	}
+	bar := fgStyle(plum).Render("▌")
+	inner := width - 3
+	if inner < 2 {
+		inner = 2
+	}
+	var out []string
+	for _, line := range wrapText(text, inner-2) {
+		body := blockLine(line, colorText, colorSurface2, inner)
+		out = append(out, " "+bar+body)
+	}
+	if len(out) == 0 {
+		out = append(out, " "+bar+blockLine("", colorText, colorSurface2, inner))
+	}
+	return out
 }
 
 func blockLine(text string, fg, bg rgb, width int) string {
@@ -435,7 +466,7 @@ func (m Model) renderStopPanel(l layout) string {
 
 func (m Model) renderStatus(l layout) string {
 	width := maxInt(8, m.width-16)
-	lines := []string{mutedStyle.Render("  you are in: ") + textStyle.Render(truncate(m.userDir, width))}
+	lines := []string{statusLabelStyle.Render("  you are in: ") + statusPathStyle.Render(truncate(m.userDir, width))}
 	if l.statusH > 1 {
 		path := ""
 		if view := m.activeView(); view != nil {
@@ -446,17 +477,28 @@ func (m Model) renderStatus(l layout) string {
 				}
 			}
 		}
-		lines = append(lines, mutedStyle.Render("  agent now in: ")+fgStyle(colorAccent2).Render(truncate(path, width)))
-	}
-	if l.statusH > 2 {
-		if view := m.activeView(); view != nil {
-			st := view.session.Orch.Stats()
-			stats := fmt.Sprintf("ctx %s · total %s · %d req · %.0f rpm · %s",
-				humanTokens(st.ContextTokens), humanTokens(st.TotalTokens), st.Requests, st.RPM, costLabel(st))
-			lines = append(lines, mutedStyle.Render("  tokens: ")+fgStyle(sky).Render(stats))
+		left := statusLabelStyle.Render("  agent now in: ") + statusPathStyle.Render(truncate(path, width))
+		right := m.renderTokens()
+		leftWidth := lipgloss.Width(left)
+		rightWidth := lipgloss.Width(right)
+		if leftWidth+rightWidth+4 <= m.width {
+			left += strings.Repeat(" ", m.width-2-leftWidth-rightWidth) + right
 		}
+		lines = append(lines, left)
 	}
 	return fitHeight(strings.Join(lines, "\n"), l.statusH)
+}
+
+// renderTokens puts the session usage on the right side above the composer.
+func (m Model) renderTokens() string {
+	view := m.activeView()
+	if view == nil {
+		return ""
+	}
+	st := view.session.Orch.Stats()
+	text := fmt.Sprintf("ctx %s · total %s · %d req · %.0f rpm · %s",
+		humanTokens(st.ContextTokens), humanTokens(st.TotalTokens), st.Requests, st.RPM, costLabel(st))
+	return hintStyle.Render(text)
 }
 
 func humanTokens(count int) string {
