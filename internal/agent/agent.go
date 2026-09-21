@@ -30,6 +30,7 @@ type Runtime struct {
 	Env      *tools.Env
 
 	HistoryPath string
+	IdleTimeout time.Duration
 
 	mu             sync.Mutex
 	history        []llm.Message
@@ -166,17 +167,31 @@ func (r *Runtime) RunChief(ctx context.Context, goal string) error {
 		if !done {
 			continue
 		}
-		if r.Bus.ActiveSubs() > 0 {
-			r.Bus.SetState(r.Agent, bus.StateWaiting, "")
-			if msg, ok := r.Bus.IdleWait(ctx, r.Agent.ID, 120*time.Second); ok {
-				r.appendUser(fmt.Sprintf("[%s -> chief] %s", msg.From, msg.Text))
-			} else {
-				r.appendUser("[system] no subagent activity within the timeout; review the coordination board and either delegate or finish.")
-			}
-			continue
+		if r.Bus.ActiveSubs() == 0 {
+			r.Bus.SetState(r.Agent, bus.StateIdle, "")
+			return nil
 		}
-		r.Bus.SetState(r.Agent, bus.StateIdle, "")
-		return nil
+		// Wait for subagent activity without spending a model request per timeout.
+		r.Bus.SetState(r.Agent, bus.StateWaiting, "")
+		timeout := r.IdleTimeout
+		if timeout <= 0 {
+			timeout = 120 * time.Second
+		}
+		for {
+			msg, ok := r.Bus.IdleWait(ctx, r.Agent.ID, timeout)
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if !ok {
+				if r.Bus.ActiveSubs() == 0 {
+					r.Bus.SetState(r.Agent, bus.StateIdle, "")
+					return nil
+				}
+				continue
+			}
+			r.appendUser(fmt.Sprintf("[%s -> chief] %s", msg.From, msg.Text))
+			break
+		}
 	}
 }
 
@@ -337,7 +352,6 @@ func (r *Runtime) finishSubTurn() {
 	if target == "" {
 		return
 	}
-	r.Store.AddTask(r.Agent.Name, target, "result", text)
 	_ = r.Bus.Send(bus.Envelope{From: r.Agent.Name, To: target, Kind: "result", Text: text})
 }
 

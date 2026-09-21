@@ -320,7 +320,6 @@ func sendToChief(ctx context.Context, env *Env, args json.RawMessage) (string, e
 	if target == "" {
 		return "", fmt.Errorf("no chief agent registered")
 	}
-	env.Store.AddTask(env.Agent.Name, target, "result", in.Text)
 	if err := env.Bus.Send(bus.Envelope{From: env.Agent.Name, To: target, Kind: "result", Text: in.Text}); err != nil {
 		return "", err
 	}
@@ -345,7 +344,6 @@ func sendToSub(ctx context.Context, env *Env, args json.RawMessage) (string, err
 	if target.Kind != bus.KindSub {
 		return "", fmt.Errorf("%q is not a subagent", in.Agent)
 	}
-	env.Store.AddTask(env.Agent.Name, target.Name, "assign", in.Task)
 	if err := env.Bus.Send(bus.Envelope{From: env.Agent.Name, To: target.Name, Kind: "task", Text: in.Task}); err != nil {
 		return "", err
 	}
@@ -367,7 +365,6 @@ func stopWait(ctx context.Context, env *Env, args json.RawMessage) (string, erro
 	if target == nil {
 		return "", fmt.Errorf("unknown subagent %q", in.Agent)
 	}
-	env.Store.AddTask(env.Agent.Name, target.Name, "assign", in.Task)
 	if err := env.Bus.StopWait(in.Agent, in.Task); err != nil {
 		return "", err
 	}

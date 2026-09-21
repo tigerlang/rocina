@@ -383,31 +383,45 @@ func (s *Store) Snapshot(agent string) Snapshot {
 	return snap
 }
 
+const (
+	boardTodoLimit   = 40
+	boardSharedLimit = 40
+)
+
 func (s *Store) Board(agent string) string {
 	snap := s.Snapshot(agent)
 	var b strings.Builder
 	fmt.Fprintf(&b, "COORDINATION BOARD (revision %d)\n", snap.Revision)
 	writeTodos := func(title string, list []Todo) {
-		if len(list) == 0 {
+		open := list[:0:0]
+		for _, t := range list {
+			if t.Status != Done {
+				open = append(open, t)
+			}
+		}
+		if len(open) == 0 {
 			return
 		}
 		b.WriteString(title + ":\n")
-		for _, t := range list {
+		shown := open
+		hidden := 0
+		if len(shown) > boardTodoLimit {
+			hidden = len(shown) - boardTodoLimit
+			shown = shown[:boardTodoLimit]
+		}
+		for _, t := range shown {
 			fmt.Fprintf(&b, "- [%s] %s (id=%s, prio=%d)", t.Status, t.Title, t.ID, t.Priority)
 			if t.Detail != "" {
 				b.WriteString(" :: " + truncate(t.Detail, 120))
 			}
 			b.WriteString("\n")
 		}
+		if hidden > 0 {
+			fmt.Fprintf(&b, "- (+%d more open todos)\n", hidden)
+		}
 	}
 	writeTodos("public todos", snap.Public)
 	writeTodos("private todos", snap.Private)
-	if len(snap.Inbox) > 0 {
-		b.WriteString("tasks routed to you:\n")
-		for _, t := range snap.Inbox {
-			fmt.Fprintf(&b, "- %s: %s\n", t.Kind, truncate(t.Text, 160))
-		}
-	}
 	if len(snap.Shared) > 0 {
 		b.WriteString("shared memory:\n")
 		keys := make([]string, 0, len(snap.Shared))
@@ -415,8 +429,15 @@ func (s *Store) Board(agent string) string {
 			keys = append(keys, k)
 		}
 		sort.Strings(keys)
-		for _, k := range keys {
+		shown := keys
+		if len(shown) > boardSharedLimit {
+			shown = shown[:boardSharedLimit]
+		}
+		for _, k := range shown {
 			fmt.Fprintf(&b, "- %s = %s\n", k, truncate(snap.Shared[k], 160))
+		}
+		if hidden := len(keys) - len(shown); hidden > 0 {
+			fmt.Fprintf(&b, "- (+%d more keys)\n", hidden)
 		}
 	}
 	return b.String()
