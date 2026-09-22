@@ -112,7 +112,7 @@ Keep the key out of git when the config lives in a repository.
 
 ## Tools
 
-The chief gets: `send_to_sub`, `stop_wait`, `spawn_subagent`, `broadcast`.
+The chief gets: `send_to_sub`, `stop_wait`, `spawn_subagent`, `broadcast`, `wake_up`, `wake_up_all`.
 Subagents get: `wait_for_chief`, `send_to_chief`.
 Both get: `public_todo`, `private_todo`, `update_public_todo`, `update_private_todo`,
 `list_agents`, `shared_memory`, `checkpoint`, `think`, plus the base tools below.
@@ -133,6 +133,8 @@ Both get: `public_todo`, `private_todo`, `update_public_todo`, `update_private_t
 | `shared_memory` | get/set/list/delete keys on the shared blackboard |
 | `list_agents` | agent states and todo counts |
 | `broadcast` | message every other agent |
+| `wake_up` | chief revives one stuck or failed agent and restarts its loop |
+| `wake_up_all` | chief revives every inactive or failed subagent |
 | `checkpoint` | save/load/list an agent's conversation |
 | `think` | short reasoning step with no side effects |
 
@@ -190,6 +192,16 @@ Press `esc` twice while at least one agent is running or waiting to open a small
 above the input. `tab` / arrows / mouse pick `chief`, `Subagent…`, `all subagents` or
 `all agents`; `enter` stops, `esc` closes. `Subagent…` opens the list of running
 subagents by name. Stopping cancels the agent's context and marks it stopped.
+
+## Waking agents
+
+A unique Rocina feature: the chief sees the state of every agent and can bring a broken
+one back. When a subagent is in `error`, loops forever in thinking, or a terminal command
+never returns, the chief calls `wake_up` with the agent's name (optionally with a fresh
+instruction) or `wake_up_all` to revive every inactive or failed subagent at once. Waking
+cancels any leftover run, clears the failure state and restarts the agent's loop, so a
+stuck team recovers without a restart. Only the chief holds these tools; use `list_agents`
+to see who needs waking.
 
 ## Settings
 
