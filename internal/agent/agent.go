@@ -131,7 +131,25 @@ func (r *Runtime) LoadHistory() {
 	if err := json.Unmarshal(data, &messages); err != nil {
 		return
 	}
-	r.Restore(messages)
+	r.Restore(sanitizeHistory(messages))
+}
+
+// sanitizeHistory drops a trailing assistant turn whose tool calls never got a
+// result (a run interrupted mid-step), which strict APIs like Anthropic reject.
+func sanitizeHistory(messages []llm.Message) []llm.Message {
+	for len(messages) > 0 {
+		last := messages[len(messages)-1]
+		if last.Role == llm.RoleAssistant && len(last.ToolCalls) > 0 {
+			messages = messages[:len(messages)-1]
+			continue
+		}
+		if last.Role == llm.RoleTool {
+			messages = messages[:len(messages)-1]
+			continue
+		}
+		break
+	}
+	return messages
 }
 
 func (r *Runtime) persistHistory() {

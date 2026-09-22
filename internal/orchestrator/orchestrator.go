@@ -36,6 +36,13 @@ type Orchestrator struct {
 	approver tools.Approver
 }
 
+// agentEntry records a spawned subagent so it can be rebuilt on restart.
+type agentEntry struct {
+	Name  string `json:"name"`
+	Role  string `json:"role"`
+	Model string `json:"model"`
+}
+
 func New(cfg config.Config) (*Orchestrator, error) {
 	provider, err := buildProvider(cfg)
 	if err != nil {
@@ -177,10 +184,11 @@ func (o *Orchestrator) policy() tools.Policy {
 	o.secMu.RLock()
 	defer o.secMu.RUnlock()
 	return tools.Policy{
-		BlockUserPaths: o.security.BlockUserPaths,
-		AskBeforeRun:   o.security.AskBeforeRun,
-		AllowedRoots:   o.security.AllowedRoots,
-		Workspace:      o.cfg.Workspace,
+		BlockUserPaths:   o.security.BlockUserPaths,
+		BlockSystemPaths: o.security.BlockSystemPaths,
+		AskBeforeRun:     o.security.AskBeforeRun,
+		AllowedRoots:     o.security.AllowedRoots,
+		Workspace:        o.cfg.Workspace,
 	}
 }
 
@@ -221,12 +229,73 @@ func (o *Orchestrator) Start(ctx context.Context) error {
 	o.mu.Lock()
 	o.runtimes[chief.ID] = runtime
 	o.mu.Unlock()
+	o.restoreSubs()
 	if o.cfg.Goal == "" {
 		o.bus.SetState(chief, bus.StateIdle, "")
 		return nil
 	}
 	o.launch(chief, func(runCtx context.Context) error { return runtime.RunChief(runCtx, o.cfg.Goal) })
 	return nil
+}
+
+func (o *Orchestrator) agentsPath() string {
+	return filepath.Join(o.cfg.DataDir, "subagents.json")
+}
+
+func (o *Orchestrator) loadAgents() []agentEntry {
+	data, err := os.ReadFile(o.agentsPath())
+	if err != nil {
+		return nil
+	}
+	var entries []agentEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil
+	}
+	return entries
+}
+
+func (o *Orchestrator) persistAgents() {
+	o.mu.Lock()
+	entries := make([]agentEntry, 0, len(o.runtimes))
+	for _, runtime := range o.runtimes {
+		if runtime.Agent.Kind == bus.KindSub {
+			entries = append(entries, agentEntry{Name: runtime.Agent.Name, Role: runtime.Agent.Role, Model: runtime.Agent.Model})
+		}
+	}
+	o.mu.Unlock()
+	data, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(o.cfg.DataDir, 0o755); err != nil {
+		return
+	}
+	tmp := o.agentsPath() + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return
+	}
+	_ = os.Rename(tmp, o.agentsPath())
+}
+
+// restoreSubs rebuilds persisted subagents with their history and parks them
+// waiting for work, so a session keeps its team across restarts.
+func (o *Orchestrator) restoreSubs() {
+	for _, entry := range o.loadAgents() {
+		if entry.Name == "" || o.bus.Get(entry.Name) != nil {
+			continue
+		}
+		model := entry.Model
+		if model == "" {
+			model = o.subModel()
+		}
+		sub := o.bus.Register(entry.Name, bus.KindSub, entry.Role, "chief", model)
+		runtime := o.newRuntime(sub, subPrompt(entry.Role), model)
+		runtime.LoadHistory()
+		o.mu.Lock()
+		o.runtimes[sub.ID] = runtime
+		o.mu.Unlock()
+		o.launch(sub, func(runCtx context.Context) error { return runtime.RunSub(runCtx, "") })
+	}
 }
 
 func (o *Orchestrator) Submit(text string) error {
@@ -238,27 +307,52 @@ func (o *Orchestrator) Submit(text string) error {
 }
 
 // SubmitTo routes a user message to a specific agent. A resting chief is
-// restarted with the text as its goal, everything else receives an envelope.
+// restarted with the text as its goal, a stopped or failed agent is revived,
+// and everything else receives an envelope on the bus.
 func (o *Orchestrator) SubmitTo(target, text string) error {
 	a := o.bus.Get(target)
 	if a == nil {
 		return fmt.Errorf("unknown agent %q", target)
 	}
-	if a.Kind == bus.KindChief {
-		o.mu.Lock()
-		runtime := o.runtimes[a.ID]
-		o.mu.Unlock()
+	o.mu.Lock()
+	runtime := o.runtimes[a.ID]
+	o.mu.Unlock()
+	switch a.State() {
+	case bus.StateStopped, bus.StateError:
 		if runtime == nil {
 			return fmt.Errorf("runtime is missing for %q", target)
 		}
-		switch a.State() {
-		case bus.StateIdle, bus.StateError:
+		o.reviveAndRun(a, runtime, text)
+		return nil
+	case bus.StateIdle:
+		if a.Kind == bus.KindChief {
+			if runtime == nil {
+				return fmt.Errorf("runtime is missing for %q", target)
+			}
 			o.store.AddTask("user", a.Name, "goal", text)
 			o.launch(a, func(runCtx context.Context) error { return runtime.RunChief(runCtx, text) })
 			return nil
 		}
 	}
 	return o.bus.Send(bus.Envelope{From: "user", To: a.Name, Kind: "message", Text: text})
+}
+
+// reviveAndRun clears a stopped or failed agent and restarts its loop, handing
+// it the message as its next task.
+func (o *Orchestrator) reviveAndRun(a *bus.Agent, runtime *agent.Runtime, text string) {
+	a.BumpRun()
+	o.mu.Lock()
+	cancel := o.cancels[a.ID]
+	o.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	o.bus.Revive(a)
+	if a.Kind == bus.KindChief {
+		o.launch(a, func(runCtx context.Context) error { return runtime.RunChief(runCtx, text) })
+		return
+	}
+	o.launch(a, func(runCtx context.Context) error { return runtime.RunSub(runCtx, text) })
 }
 
 func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
@@ -462,6 +556,7 @@ func (o *Orchestrator) spawnSub(spec tools.SpawnSpec) (string, error) {
 	o.mu.Unlock()
 
 	o.store.AddTask("chief", name, "spawn", spec.Role)
+	o.persistAgents()
 	o.launch(sub, func(runCtx context.Context) error { return runtime.RunSub(runCtx, spec.Task) })
 	return sub.Name, nil
 }
