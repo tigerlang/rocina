@@ -186,6 +186,11 @@ tokens, request count, requests per minute, and cost. Token counts come from the
 each provider reports per request; cost is shown only when the provider reports it (for
 example OpenRouter), otherwise it reads `cost n/a`.
 
+Long-running agents keep their prompt bounded: the conversation history sent to the model
+is trimmed to a character budget, always preserving the original goal and the most recent
+messages (and never leaving a tool result without its call). This keeps one long run from
+billing millions of tokens for resending an ever-growing log on every step.
+
 ## Stopping agents
 
 Press `esc` twice while at least one agent is running or waiting to open a small panel
