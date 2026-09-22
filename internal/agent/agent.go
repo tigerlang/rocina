@@ -43,6 +43,59 @@ type Runtime struct {
 	requestTimes   []time.Time
 }
 
+// maxHistoryChars bounds the conversation history sent to the model. Every step
+// resends the whole history, so an unbounded log turns one long run into
+// millions of billed tokens. The anchor (the original goal) and the newest
+// messages are always kept, and no tool result is left without its call.
+const maxHistoryChars = 48000
+
+func messageChars(m llm.Message) int {
+	n := len(m.Content) + len(m.ToolCallID)
+	for _, tc := range m.ToolCalls {
+		n += len(tc.Arguments) + len(tc.Name)
+	}
+	return n
+}
+
+func trimHistory(messages []llm.Message, maxChars int) []llm.Message {
+	if maxChars <= 0 || len(messages) < 2 {
+		return messages
+	}
+	total := 0
+	for _, m := range messages {
+		total += messageChars(m)
+	}
+	if total <= maxChars {
+		return messages
+	}
+	anchor := 0
+	if messages[0].Role == llm.RoleUser {
+		anchor = 1
+	}
+	// Keep the newest messages that fit, walking back from the end.
+	budget := maxChars - messageChars(messages[0])*anchor
+	kept := 0
+	index := len(messages)
+	for index > anchor {
+		cost := messageChars(messages[index-1])
+		if kept+cost > budget {
+			break
+		}
+		index--
+		kept += cost
+	}
+	// Never begin on an orphaned tool result.
+	for index < len(messages) && messages[index].Role == llm.RoleTool {
+		index++
+	}
+	trimmed := make([]llm.Message, 0, len(messages)-index+anchor)
+	if anchor == 1 {
+		trimmed = append(trimmed, messages[0])
+	}
+	trimmed = append(trimmed, messages[index:]...)
+	return trimmed
+}
+
 type Usage struct {
 	ContextTokens int
 	TotalTokens   int
@@ -249,7 +302,7 @@ func (r *Runtime) step(ctx context.Context, allowTools bool) (bool, error) {
 	r.mu.Lock()
 	messages := make([]llm.Message, 0, len(r.history)+1)
 	messages = append(messages, llm.Message{Role: llm.RoleSystem, Content: system})
-	messages = append(messages, r.history...)
+	messages = append(messages, trimHistory(r.history, maxHistoryChars)...)
 	r.mu.Unlock()
 
 	req := llm.ChatRequest{
