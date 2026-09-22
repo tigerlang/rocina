@@ -98,6 +98,8 @@ func (m Model) renderSettingsOverlay() string {
 			case 0:
 				checked = cfg.Security.BlockUserPaths
 			case 1:
+				checked = cfg.Security.BlockSystemPaths
+			case 2:
 				checked = cfg.Security.AskBeforeRun
 			}
 			box := faintStyle.Render("[ ]")

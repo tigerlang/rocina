@@ -18,9 +18,10 @@ const (
 )
 
 type Security struct {
-	BlockUserPaths bool     `json:"block_user_paths"`
-	AskBeforeRun   bool     `json:"ask_before_run"`
-	AllowedRoots   []string `json:"allowed_roots,omitempty"`
+	BlockUserPaths   bool     `json:"block_user_paths"`
+	BlockSystemPaths bool     `json:"block_system_paths"`
+	AskBeforeRun     bool     `json:"ask_before_run"`
+	AllowedRoots     []string `json:"allowed_roots,omitempty"`
 }
 
 type Config struct {

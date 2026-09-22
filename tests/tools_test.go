@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -165,8 +166,17 @@ func TestPolicyBlocksUserPaths(t *testing.T) {
 		t.Skip("no home directory")
 	}
 	policy := tools.Policy{BlockUserPaths: true, Workspace: t.TempDir()}
-	if err := policy.Check(filepath.Join(home, "Documents", "secret.txt")); err == nil {
-		t.Fatal("expected a protected user path to be blocked")
+	blocked := []string{
+		filepath.Join(home, "Documents", "secret.txt"),
+		filepath.Join(home, "Downloads", "x"),
+		filepath.Join(home, ".ssh", "id_rsa"),
+		filepath.Join(home, ".aws", "credentials"),
+		filepath.Join(home, ".git-credentials"),
+	}
+	for _, path := range blocked {
+		if err := policy.Check(path); err == nil {
+			t.Fatalf("expected %s to be blocked", path)
+		}
 	}
 	if err := policy.Check(filepath.Join(policy.Workspace, "notes.txt")); err != nil {
 		t.Fatalf("workspace must stay allowed: %v", err)
@@ -174,6 +184,33 @@ func TestPolicyBlocksUserPaths(t *testing.T) {
 	relaxed := tools.Policy{Workspace: t.TempDir()}
 	if err := relaxed.Check(filepath.Join(home, "Documents", "secret.txt")); err != nil {
 		t.Fatalf("disabled policy must not block: %v", err)
+	}
+}
+
+func TestPolicyBlocksSystemPaths(t *testing.T) {
+	policy := tools.Policy{BlockSystemPaths: true, Workspace: t.TempDir()}
+	blocked := []string{"/etc/passwd", "/usr/bin/env", "/bin/sh"}
+	if runtime.GOOS == "darwin" {
+		blocked = append(blocked, "/System", "/Library")
+	}
+	for _, path := range blocked {
+		if err := policy.Check(path); err == nil {
+			t.Fatalf("expected system path %s to be blocked", path)
+		}
+	}
+	allowed := tools.Policy{
+		BlockSystemPaths: true,
+		AllowedRoots:     []string{"/etc/app"},
+	}
+	if err := allowed.Check("/etc/app/ok.conf"); err != nil {
+		t.Fatalf("allowed root inside a system tree must stay reachable: %v", err)
+	}
+	relaxed := tools.Policy{}
+	if err := relaxed.Check("/etc/passwd"); err != nil {
+		t.Fatalf("disabled policy must not block: %v", err)
+	}
+	if err := policy.Check(policy.Workspace + "/file"); err != nil {
+		t.Fatalf("workspace must stay allowed: %v", err)
 	}
 }
 

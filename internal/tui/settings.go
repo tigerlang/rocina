@@ -12,6 +12,7 @@ import (
 
 var securityItems = []string{
 	"Block user paths (Linux, Windows, macOS)",
+	"Block system paths (Linux, Windows, macOS)",
 	"Always ask before running a terminal/file command",
 }
 
@@ -69,6 +70,8 @@ func (m *Model) toggleSecurity(index int) {
 	case 0:
 		cfg.Security.BlockUserPaths = !cfg.Security.BlockUserPaths
 	case 1:
+		cfg.Security.BlockSystemPaths = !cfg.Security.BlockSystemPaths
+	case 2:
 		cfg.Security.AskBeforeRun = !cfg.Security.AskBeforeRun
 	}
 	m.mgr.ApplySecurity(cfg.Security)
