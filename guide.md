@@ -167,10 +167,11 @@ starts a new session instead of continuing the last one.
 
 `ctrl+n` opens a fresh session: a new chief, bus and store under
 `<data_dir>/sessions/<id>`. Sessions persist across restarts: the list and the active one
-are stored in `<data_dir>/sessions.json` and restored on start. `ctrl+l` lists every
-session; select with arrows and `enter`, or click a row. `d` (or `delete`/`backspace`)
-removes the selected session, stops its agents and deletes its directory. Each session
-keeps its own chats, agents and history.
+are stored in `<data_dir>/sessions.json` and restored on start, and the subagents a
+session spawned are saved in `<data_dir>/subagents.json` and rebuilt with their history.
+`ctrl+l` lists every session; select with arrows and `enter`, or click a row. `d` (or
+`delete`/`backspace`) removes the selected session, stops its agents and deletes its
+directory. Each session keeps its own chats, agents and history.
 
 ## Working directories
 
@@ -212,11 +213,18 @@ to see who needs waking.
 
 `ctrl+o` or the sidebar "settings" opens the settings overlay.
 
-- **security** — two toggles, applied immediately and saved to
+- **security** — three toggles, applied immediately and saved to
   `~/.config/rocina/config.json`:
   - `Block user paths` denies file access outside the workspace and into personal
-    directories (home, Documents, Desktop, Downloads, Pictures, Music, Videos, Library,
-    `.ssh`, `.gnupg`; `/Users` on macOS and `C:\Users` on Windows).
+    directories. On Linux and macOS: home and its Documents, Desktop, Downloads,
+    Pictures, Music, Videos, Public, Templates, Library, plus private dirs such as `.ssh`,
+    `.gnupg`, `.aws`, `.kube`, `.docker`, `.mozilla`, `.thunderbird` and history files;
+    extra roots are read from `~/.config/user-dirs.dirs`, and `/home`, `/Users` are
+    covered. On Windows: the user profile, `AppData`, `OneDrive` and `C:\Users`.
+  - `Block system paths` denies OS-owned locations: `/etc`, `/bin`, `/sbin`, `/usr`,
+    `/lib*`, `/boot`, `/dev`, `/proc`, `/sys`, `/root`, `/var`, `/opt`, `/srv`, `/run` on
+    Linux; `/System`, `/Library`, `/usr`, `/bin`, `/sbin`, `/private` and more on macOS;
+    `%SystemRoot%`, `%ProgramFiles%`, `%ProgramData%` and `C:\Windows` on Windows.
   - `Always ask before running a terminal/file command` shows a permission prompt for
     `bash_tool`, `terminal_tool`, `write_file` and `edit_file`. In headless mode with no
     approver such calls are denied.
@@ -231,12 +239,13 @@ The policy lives in the config:
 
     "security": {
       "block_user_paths": true,
+      "block_system_paths": true,
       "ask_before_run": true,
       "allowed_roots": ["/srv/shared"]
     }
 
-Paths inside `workspace` and `allowed_roots` stay reachable even when `block_user_paths`
-is on.
+Paths inside `workspace` and `allowed_roots` stay reachable even when the path blocks are
+on.
 
 ## Coordination flow
 

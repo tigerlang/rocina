@@ -24,8 +24,9 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   tool call in a filled gray block with the actual command and result. Provider errors
   (rate limits, transport) appear inline in light red. A right sidebar keeps a minimised
   chat for every agent.
-- Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions persist across restarts
-  (`<data_dir>/sessions.json`) and are removed only with `d` in the session list.
+- Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions and the subagents they spawned persist
+  across restarts (`<data_dir>/sessions.json`, `<data_dir>/subagents.json`) and are removed
+  only with `d` in the session list.
 - Settings overlay (`ctrl+o` or "settings" in the sidebar) with Security, a config editor
   that applies on save, and a Hotkeys tab.
 - Per-session usage: context and total tokens, requests per minute, and cost when the
@@ -41,8 +42,8 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   agents from a small panel above the input.
 - Wake agents: the chief sees every agent's state and can revive a stuck or failed one with
   `wake_up` / `wake_up_all`.
-- Security: block user paths on Linux, Windows and macOS, and optionally require
-  approval for every terminal/file command.
+- Security: block user paths and system paths on Linux, Windows and macOS, and optionally
+  require approval for every terminal/file command.
 
 ## Build
 
