@@ -20,6 +20,8 @@ type SpawnSpec struct {
 type Hooks struct {
 	Spawn      func(SpawnSpec) (string, error)
 	Checkpoint func(agent, action, name string) (string, error)
+	Wake       func(name, task string) (string, error)
+	WakeAll    func(task string) ([]string, error)
 }
 
 type Env struct {

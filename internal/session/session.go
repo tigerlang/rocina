@@ -11,6 +11,7 @@ import (
 
 	"rocina/internal/config"
 	"rocina/internal/id"
+	"rocina/internal/llm"
 	"rocina/internal/orchestrator"
 )
 
@@ -36,8 +37,9 @@ type index struct {
 }
 
 type Manager struct {
-	base config.Config
-	ctx  context.Context
+	base     config.Config
+	ctx      context.Context
+	provider llm.Provider
 
 	mu     sync.Mutex
 	items  []*Session
@@ -45,7 +47,17 @@ type Manager struct {
 }
 
 func NewManager(ctx context.Context, cfg config.Config) (*Manager, error) {
-	m := &Manager{base: cfg, ctx: ctx}
+	return newManager(ctx, cfg, nil)
+}
+
+// NewManagerWithProvider builds a manager that uses the supplied provider for
+// every session, used by tests and embedding.
+func NewManagerWithProvider(ctx context.Context, cfg config.Config, provider llm.Provider) (*Manager, error) {
+	return newManager(ctx, cfg, provider)
+}
+
+func newManager(ctx context.Context, cfg config.Config, provider llm.Provider) (*Manager, error) {
+	m := &Manager{base: cfg, ctx: ctx, provider: provider}
 	saved := m.loadIndex()
 	if len(saved.Sessions) == 0 {
 		if _, err := m.NewSession("main"); err != nil {
@@ -69,6 +81,13 @@ func NewManager(ctx context.Context, cfg config.Config) (*Manager, error) {
 
 func (m *Manager) indexPath() string {
 	return filepath.Join(m.base.DataDir, "sessions.json")
+}
+
+func (m *Manager) newOrch(cfg config.Config) (*orchestrator.Orchestrator, error) {
+	if m.provider != nil {
+		return orchestrator.NewWithProvider(cfg, m.provider)
+	}
+	return orchestrator.New(cfg)
 }
 
 func (m *Manager) loadIndex() index {
@@ -108,7 +127,7 @@ func (m *Manager) persistLocked() {
 func (m *Manager) restore(e entry) (*Session, error) {
 	cfg := m.base
 	cfg.DataDir = e.DataDir
-	orch, err := orchestrator.New(cfg)
+	orch, err := m.newOrch(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +146,7 @@ func (m *Manager) NewSession(name string) (*Session, error) {
 	sessionID := id.New("ses")
 	cfg := m.base
 	cfg.DataDir = filepath.Join(m.base.DataDir, "sessions", sessionID)
-	orch, err := orchestrator.New(cfg)
+	orch, err := m.newOrch(cfg)
 	if err != nil {
 		return nil, err
 	}

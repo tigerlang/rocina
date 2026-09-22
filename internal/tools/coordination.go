@@ -105,6 +105,19 @@ func registerChief(r *Registry) {
 		}, "text")),
 		Run: broadcast,
 	})
+	r.add(Tool{
+		Def: def("wake_up", "Revive a stuck or failed agent. Use it when a subagent is in error, loops forever or a terminal command never returns. Optionally give it a fresh instruction.", obj(map[string]any{
+			"agent": str("subagent name or id"),
+			"task":  str("optional instruction to resume with"),
+		}, "agent")),
+		Run: wakeUp,
+	})
+	r.add(Tool{
+		Def: def("wake_up_all", "Revive every inactive or failed subagent at once.", obj(map[string]any{
+			"task": str("optional instruction to resume with"),
+		})),
+		Run: wakeUpAll,
+	})
 }
 
 func registerSub(r *Registry) {
@@ -412,4 +425,49 @@ func broadcast(ctx context.Context, env *Env, args json.RawMessage) (string, err
 	}
 	count := env.Bus.Broadcast(env.Agent.Name, in.Text)
 	return fmt.Sprintf("broadcast delivered to %d agents", count), nil
+}
+
+func wakeUp(ctx context.Context, env *Env, args json.RawMessage) (string, error) {
+	if env.Agent.Kind != bus.KindChief {
+		return "", fmt.Errorf("wake_up is available to the chief only")
+	}
+	var in struct {
+		Agent string `json:"agent"`
+		Task  string `json:"task"`
+	}
+	if err := json.Unmarshal(args, &in); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(in.Agent) == "" {
+		return "", fmt.Errorf("agent is required")
+	}
+	if env.Hooks.Wake == nil {
+		return "", fmt.Errorf("waking is not available")
+	}
+	name, err := env.Hooks.Wake(in.Agent, in.Task)
+	if err != nil {
+		return "", err
+	}
+	return "woke " + name, nil
+}
+
+func wakeUpAll(ctx context.Context, env *Env, args json.RawMessage) (string, error) {
+	if env.Agent.Kind != bus.KindChief {
+		return "", fmt.Errorf("wake_up_all is available to the chief only")
+	}
+	var in struct {
+		Task string `json:"task"`
+	}
+	_ = json.Unmarshal(args, &in)
+	if env.Hooks.WakeAll == nil {
+		return "", fmt.Errorf("waking is not available")
+	}
+	woken, err := env.Hooks.WakeAll(in.Task)
+	if err != nil {
+		return "", err
+	}
+	if len(woken) == 0 {
+		return "no subagents needed waking", nil
+	}
+	return "woke " + strings.Join(woken, ", "), nil
 }

@@ -63,6 +63,20 @@ type Agent struct {
 	mu        sync.RWMutex
 	state     State
 	lastError string
+	runGen    int
+}
+
+func (a *Agent) RunGen() int {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.runGen
+}
+
+func (a *Agent) BumpRun() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.runGen++
+	return a.runGen
 }
 
 func (a *Agent) State() State {
@@ -82,6 +96,12 @@ func (a *Agent) setState(s State, err string) {
 	a.state = s
 	a.lastError = err
 	a.mu.Unlock()
+}
+
+func (a *Agent) doneChan() chan struct{} {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.done
 }
 
 type Bus struct {
@@ -186,7 +206,7 @@ func (b *Bus) Send(env Envelope) error {
 		return nil
 	case <-time.After(5 * time.Second):
 		return fmt.Errorf("agent %q inbox is full", env.To)
-	case <-a.done:
+	case <-a.doneChan():
 		return fmt.Errorf("agent %q is stopped", env.To)
 	}
 }
@@ -217,10 +237,9 @@ func (b *Bus) Wait(ctx context.Context, agentID string) (Envelope, error) {
 	case env := <-a.Inbox:
 		b.SetState(a, StateRunning, "")
 		return env, nil
-	case <-a.done:
+	case <-a.doneChan():
 		return Envelope{}, fmt.Errorf("agent %q stopped", a.Name)
 	case <-ctx.Done():
-		b.SetState(a, StateIdle, "")
 		return Envelope{}, ctx.Err()
 	}
 }
@@ -245,7 +264,7 @@ func (b *Bus) IdleWait(ctx context.Context, agentID string, timeout time.Duratio
 		return env, true
 	case <-timer.C:
 		return Envelope{}, false
-	case <-a.done:
+	case <-a.doneChan():
 		return Envelope{}, false
 	case <-ctx.Done():
 		return Envelope{}, false
@@ -269,8 +288,28 @@ func (b *Bus) Stop(a *Agent) {
 	if a == nil {
 		return
 	}
-	a.closeOnce.Do(func() { close(a.done) })
+	a.closeOnce.Do(func() { close(a.doneChan()) })
 	b.SetState(a, StateStopped, "")
+}
+
+// Revive brings an agent back from error or a stopped state by installing a
+// fresh done channel and clearing the failure state.
+func (b *Bus) Revive(a *Agent) bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	if a.state != StateError && a.state != StateStopped {
+		a.mu.Unlock()
+		return false
+	}
+	a.done = make(chan struct{})
+	a.closeOnce = sync.Once{}
+	a.state = StateIdle
+	a.lastError = ""
+	a.mu.Unlock()
+	b.Publish(Event{Type: "agent.revived", Agent: a.Name, Text: "revived"})
+	return true
 }
 
 func (b *Bus) ActiveSubs() int {

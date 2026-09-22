@@ -37,12 +37,22 @@ type Orchestrator struct {
 }
 
 func New(cfg config.Config) (*Orchestrator, error) {
-	if cfg.Model == "" && (cfg.ChiefModel == "" || cfg.SubModel == "") {
-		return nil, fmt.Errorf("model is not configured: set -model, or chief_model and sub_model in the config")
-	}
 	provider, err := buildProvider(cfg)
 	if err != nil {
 		return nil, err
+	}
+	return newWith(cfg, provider)
+}
+
+// NewWithProvider builds an orchestrator around a supplied provider, used by
+// tests and embedding to bypass credential checks.
+func NewWithProvider(cfg config.Config, provider llm.Provider) (*Orchestrator, error) {
+	return newWith(cfg, provider)
+}
+
+func newWith(cfg config.Config, provider llm.Provider) (*Orchestrator, error) {
+	if cfg.Model == "" && (cfg.ChiefModel == "" || cfg.SubModel == "") {
+		return nil, fmt.Errorf("model is not configured: set -model, or chief_model and sub_model in the config")
 	}
 	st, err := store.Open(cfg.DataDir)
 	if err != nil {
@@ -259,6 +269,7 @@ func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
 		parent = context.Background()
 	}
 	runCtx, cancel := context.WithCancel(parent)
+	gen := a.BumpRun()
 	o.mu.Lock()
 	o.cancels[a.ID] = cancel
 	o.mu.Unlock()
@@ -266,11 +277,17 @@ func (o *Orchestrator) launch(a *bus.Agent, run func(context.Context) error) {
 	go func() {
 		defer o.wg.Done()
 		defer func() {
+			if a.RunGen() != gen {
+				return
+			}
 			o.mu.Lock()
 			delete(o.cancels, a.ID)
 			o.mu.Unlock()
 		}()
 		err := run(runCtx)
+		if a.RunGen() != gen {
+			return
+		}
 		if runCtx.Err() != nil {
 			o.bus.SetState(a, bus.StateStopped, "")
 			return
@@ -328,6 +345,59 @@ func (o *Orchestrator) WorkingAgents() []*bus.Agent {
 	return out
 }
 
+// WakeAgent revives a stuck or failed agent and restarts its run loop. It is
+// the escape hatch for error states and for hangs such as an endless thinking
+// loop or a terminal command that never returns.
+func (o *Orchestrator) WakeAgent(name, task string) (string, error) {
+	a := o.bus.Get(name)
+	if a == nil {
+		return "", fmt.Errorf("unknown agent %q", name)
+	}
+	o.mu.Lock()
+	runtime := o.runtimes[a.ID]
+	o.mu.Unlock()
+	if runtime == nil {
+		return "", fmt.Errorf("runtime is missing for %q", name)
+	}
+	if a.State() == bus.StateRunning || a.State() == bus.StateWaiting {
+		return "", fmt.Errorf("%s is already active", a.Name)
+	}
+	// Cancel any leftover run and detach it before reviving.
+	a.BumpRun()
+	o.mu.Lock()
+	cancel := o.cancels[a.ID]
+	o.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	o.bus.Revive(a)
+	if task == "" {
+		task = "Resume your task. If you hit an error, review the last tool result and continue."
+	}
+	if a.Kind == bus.KindChief {
+		o.launch(a, func(runCtx context.Context) error { return runtime.RunChief(runCtx, task) })
+	} else {
+		o.launch(a, func(runCtx context.Context) error { return runtime.RunSub(runCtx, task) })
+	}
+	return a.Name, nil
+}
+
+func (o *Orchestrator) WakeSubs(task string) []string {
+	var woken []string
+	for _, a := range o.bus.List() {
+		if a.Kind != bus.KindSub {
+			continue
+		}
+		if a.State() == bus.StateRunning || a.State() == bus.StateWaiting {
+			continue
+		}
+		if _, err := o.WakeAgent(a.Name, task); err == nil {
+			woken = append(woken, a.Name)
+		}
+	}
+	return woken
+}
+
 func (o *Orchestrator) newRuntime(a *bus.Agent, system, model string) *agent.Runtime {
 	env := &tools.Env{
 		Agent:     a,
@@ -339,6 +409,8 @@ func (o *Orchestrator) newRuntime(a *bus.Agent, system, model string) *agent.Run
 		Hooks: tools.Hooks{
 			Spawn:      o.spawnSub,
 			Checkpoint: o.checkpoint,
+			Wake:       o.WakeAgent,
+			WakeAll:    o.wakeAll,
 		},
 	}
 	return &agent.Runtime{
@@ -354,6 +426,10 @@ func (o *Orchestrator) newRuntime(a *bus.Agent, system, model string) *agent.Run
 		Env:         env,
 		HistoryPath: filepath.Join(o.cfg.DataDir, "agents", a.Name+".json"),
 	}
+}
+
+func (o *Orchestrator) Spawn(spec tools.SpawnSpec) (string, error) {
+	return o.spawnSub(spec)
 }
 
 func (o *Orchestrator) spawnSub(spec tools.SpawnSpec) (string, error) {
@@ -398,6 +474,10 @@ func (o *Orchestrator) runtimeByName(name string) *agent.Runtime {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return o.runtimes[a.ID]
+}
+
+func (o *Orchestrator) wakeAll(task string) ([]string, error) {
+	return o.WakeSubs(task), nil
 }
 
 func (o *Orchestrator) checkpoint(agentName, action, name string) (string, error) {
@@ -490,6 +570,7 @@ When work is required:
 - Keep intent on the shared board with public_todo and update_public_todo; every tool call refreshes the board for all agents.
 - Use private_todo for your own scratch plan and think for short reasoning with no side effects.
 - Use shared_memory for facts the whole team must agree on, list_agents to inspect state, broadcast to reach everyone.
+- You can see every agent's state via list_agents. If a subagent is stuck in error, loops forever or a terminal command never returns, call wake_up for that agent or wake_up_all to revive every failed subagent. Waking restarts its loop and optionally hands it a fresh instruction.
 - Prefer delegating concrete coding work to subagents; do not leave a subagent blocked when you can unblock it.
 - Finish with a concise summary when every public todo is done.
 
