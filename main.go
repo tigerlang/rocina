@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"rocina/internal/config"
+	"rocina/internal/fonts"
 	"rocina/internal/orchestrator"
 	"rocina/internal/session"
 	"rocina/internal/tui"
@@ -41,12 +42,23 @@ func run() error {
 	headless := fs.Bool("headless", false, "run without the TUI")
 	maxSubs := fs.Int("max-subagents", 0, "maximum number of subagents")
 	maxSteps := fs.Int("max-steps", 0, "tool steps per turn")
+	installFonts := fs.Bool("install-fonts", false, "install the recommended fonts (Monaspace Neon, then JetBrains Mono) and exit")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 
 	if *showVersion {
 		fmt.Printf("rocina %s\n", version.Version)
+		return nil
+	}
+
+	if *installFonts {
+		result := fonts.Ensure()
+		if result.Installed != "" {
+			fmt.Printf("rocina: using %s (%s) at %s\n", result.Installed, result.Message, result.Path)
+		} else {
+			fmt.Println("rocina: " + result.Message)
+		}
 		return nil
 	}
 
@@ -85,6 +97,9 @@ func run() error {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	// Best effort: register the preferred fonts so the terminal can use them.
+	go fonts.Ensure()
 
 	if cfg.Headless {
 		if cfg.Goal == "" {
