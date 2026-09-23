@@ -95,7 +95,17 @@ Keep the key out of git when the config lives in a repository.
     -headless        run without the TUI
     -max-subagents   subagent limit
     -max-steps       tool steps per turn
+    -install-fonts   install the recommended fonts and exit
     -version, -v     print version
+
+## Fonts
+
+Rocina recommends monospace fonts but a terminal app cannot switch the terminal's font
+itself, so it installs them for the terminal to pick up. On start it best-effort registers
+Monaspace Neon, then JetBrains Mono, and if neither can be installed it leaves the system
+default. Run `rocina -install-fonts` to do it explicitly and see the result; already
+installed fonts are detected and reused. After installing, select the font in your
+terminal settings.
 
 ## Choosing models
 
