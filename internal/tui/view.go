@@ -97,20 +97,31 @@ func (m Model) renderChatPanel(view *sessionView, name string, width, height int
 	return fitHeight(strings.Join(lines, "\n"), height)
 }
 
-// renderAgentHeader draws the focused agent line as a filled block, echoing the
-// composer title bar with fewer details.
+// renderAgentHeader draws the focused agent line on a full-width gray bar with
+// the agent name emphasized. Lipgloss ends every rendered segment with a reset,
+// which would punch black holes in the bar, so the background is re-asserted
+// after each reset instead of being set per segment.
 func (m Model) renderAgentHeader(view *sessionView, name string, width int) string {
 	if width < 6 {
 		width = 6
 	}
-	label := fgStyle(plum).Bold(true).Render(name)
+	nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(plum.hex())).Bold(true)
+	label := nameStyle.Render(name)
 	if agent := view.session.Orch.Bus().Get(name); agent != nil {
 		label += "  " + stateStyle(string(agent.State())).Render(string(agent.State()))
 		if agent.Model != "" {
 			label += "  " + faintStyle.Render(agent.Model)
 		}
 	}
-	return blockLine(label, colorText, colorSurface2, width)
+	label = lipgloss.NewStyle().MaxWidth(maxInt(1, width-1)).Render(label)
+	pad := width - 1 - lipgloss.Width(label)
+	if pad < 0 {
+		pad = 0
+	}
+	bg := "\x1b[48;2;" + fmt.Sprintf("%d;%d;%d", clamp8(colorSurface2.r), clamp8(colorSurface2.g), clamp8(colorSurface2.b)) + "m"
+	line := " " + label + strings.Repeat(" ", pad)
+	line = bg + strings.ReplaceAll(line, "\x1b[0m", "\x1b[0m"+bg)
+	return line + "\x1b[0m"
 }
 
 func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]string, []string) {

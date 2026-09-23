@@ -6,8 +6,8 @@ var (
 	colorText     = hexRGB("#CDD6F4")
 	colorMuted    = hexRGB("#6C7086")
 	colorFaint    = hexRGB("#3B3B52")
-	colorSurface  = hexRGB("#1E1E1E")
-	colorSurface2 = hexRGB("#2A2A2A")
+	colorSurface  = hexRGB("#151515")
+	colorSurface2 = hexRGB("#1F1F1F")
 	colorGood     = hexRGB("#A6E3A1")
 	colorWarn     = hexRGB("#F9E2AF")
 	colorBad      = hexRGB("#F38BA8")
@@ -27,7 +27,7 @@ var (
 	titleStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
 	labelStyle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
 	focusTitle     = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent.hex()))
-	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F2F2FA")).Bold(true)
+	assistantStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F2F2FA"))
 	thinkingStyle  = fgStyle(hexRGB("#8A8FA8"))
 
 	// Status text sits above the composer; kept small and 15% fainter.

@@ -90,7 +90,7 @@ func heading(text string, width int, color rgb) string {
 
 var (
 	mdCodeStyle = fgStyle(sky)
-	mdBoldStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(colorAccent2.hex()))
+	mdBoldStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(plum.hex()))
 )
 
 // inline styles `code` spans and **bold** spans, leaving the rest in the base color.
