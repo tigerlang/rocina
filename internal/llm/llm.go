@@ -3,7 +3,49 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 )
+
+// httpError turns a provider error response into a short message. Providers
+// return a JSON body such as {"error":{"message":"...","type":"..."}} or
+// {"message":"..."}; showing that raw body inline is unreadable and huge, so
+// only the human message is extracted and the rest is dropped.
+func httpError(name string, status int, body []byte) error {
+	message := errorMessage(body)
+	if message == "" {
+		message = strings.TrimSpace(string(body))
+	}
+	message = strings.ReplaceAll(message, "\n", " ")
+	if len(message) > 500 {
+		message = message[:500] + "…"
+	}
+	if message == "" {
+		return fmt.Errorf("%s: status %d", name, status)
+	}
+	return fmt.Errorf("%s: status %d: %s", name, status, message)
+}
+
+func errorMessage(body []byte) string {
+	var parsed struct {
+		Error *struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+		} `json:"error"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return ""
+	}
+	switch {
+	case parsed.Error != nil && parsed.Error.Message != "":
+		return strings.TrimSpace(parsed.Error.Message)
+	case parsed.Message != "":
+		return strings.TrimSpace(parsed.Message)
+	default:
+		return ""
+	}
+}
 
 type Role string
 

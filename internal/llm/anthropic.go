@@ -49,7 +49,7 @@ func (p *anthropicProvider) Models(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("claude: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError("claude", resp.StatusCode, data)
 	}
 	var parsed struct {
 		Data []struct {
@@ -96,7 +96,7 @@ func (p *anthropicProvider) ChatStream(ctx context.Context, req ChatRequest, emi
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return nil, fmt.Errorf("claude: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError("claude", resp.StatusCode, data)
 	}
 	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
@@ -250,7 +250,7 @@ func (p *anthropicProvider) do(ctx context.Context, body []byte) ([]byte, error)
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("claude: status %d: %s", resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError("claude", resp.StatusCode, data)
 	}
 	return data, nil
 }

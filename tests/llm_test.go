@@ -59,8 +59,12 @@ func TestOpenAIProviderReportsHTTPError(t *testing.T) {
 	defer srv.Close()
 
 	p := llm.NewOpenAI("test", srv.URL, "secret", nil)
-	if _, err := p.Chat(context.Background(), llm.ChatRequest{Model: "m"}); err == nil {
+	_, err := p.Chat(context.Background(), llm.ChatRequest{Model: "m"})
+	if err == nil {
 		t.Fatal("expected error for non-2xx response")
+	}
+	if got := err.Error(); got != "test: status 401: bad key" {
+		t.Fatalf("provider error was not cleaned: %q", got)
 	}
 }
 

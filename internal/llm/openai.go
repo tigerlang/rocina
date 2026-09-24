@@ -56,7 +56,7 @@ func (p *openAIProvider) Models(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%s: status %d: %s", p.name, resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError(p.name, resp.StatusCode, data)
 	}
 	var parsed struct {
 		Data []struct {
@@ -103,7 +103,7 @@ func (p *openAIProvider) ChatStream(ctx context.Context, req ChatRequest, emit S
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		data, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-		return nil, fmt.Errorf("%s: status %d: %s", p.name, resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError(p.name, resp.StatusCode, data)
 	}
 	if !strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream") {
 		data, err := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
@@ -251,7 +251,7 @@ func (p *openAIProvider) do(ctx context.Context, body []byte) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("%s: status %d: %s", p.name, resp.StatusCode, strings.TrimSpace(string(data)))
+		return nil, httpError(p.name, resp.StatusCode, data)
 	}
 	return data, nil
 }
