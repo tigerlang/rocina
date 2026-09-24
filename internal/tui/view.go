@@ -390,23 +390,23 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 	return style.Render(content)
 }
 
-// spawnLines reveals a freshly spawned card top-down and fades it in, so the
-// subagent appears to float out of the chief card above it instead of popping
-// into the sidebar.
+// spawnLines grows a freshly spawned card out of the previous one and fades it
+// in, top-down, so the subagent appears to float out of the chief card above it
+// instead of popping into the sidebar. Only the revealed lines take space while
+// the card grows.
 func spawnLines(card string, progress float64) []string {
+	progress = clamp01(progress)
 	lines := strings.Split(card, "\n")
-	reveal := int(math.Ceil(clamp01(progress) * float64(len(lines))))
+	reveal := int(math.Ceil(progress * float64(len(lines))))
 	if reveal < 1 {
 		reveal = 1
 	}
 	if reveal > len(lines) {
 		reveal = len(lines)
 	}
-	out := make([]string, len(lines))
-	for i := range lines {
-		if i < reveal {
-			out[i] = fadeANSI(lines[i], progress)
-		}
+	out := make([]string, 0, len(lines))
+	for i := 0; i < reveal; i++ {
+		out = append(out, fadeANSI(lines[i], progress))
 	}
 	return out
 }
