@@ -69,6 +69,7 @@ type sessionView struct {
 	cwd      map[string]string
 	spawn    map[string]float64
 	focus    int
+	focusPos float64
 	scroll   int
 	ease     float64
 	started  bool
@@ -274,6 +275,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					progress = 1
 				}
 				view.spawn[name] = progress
+			}
+			view.focusPos += (float64(view.focus) - view.focusPos) * 0.22
+			if math.Abs(float64(view.focus)-view.focusPos) < 0.01 {
+				view.focusPos = float64(view.focus)
 			}
 		}
 		if m.frame%40 == 0 {

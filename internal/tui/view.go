@@ -356,31 +356,31 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 
 	header := labelStyle.Render("AGENTS") + "  " + fgStyle(plum).Render("settings")
 
-	var b strings.Builder
-	b.WriteString(header + "\n")
+	lines := []string{header}
 	available := innerHeight - 1
 	agents := view.session.Orch.Bus().List()
 	if len(agents) == 0 {
-		b.WriteString(mutedStyle.Render("no agents"))
+		lines = append(lines, mutedStyle.Render("no agents"))
 	}
-	for i, a := range agents {
-		card := m.agentCard(view, a, innerWidth, i == view.focus)
-		lines := strings.Split(card, "\n")
+	for _, a := range agents {
+		card := m.agentCard(view, a, innerWidth)
+		cardLines := strings.Split(card, "\n")
 		if progress, ok := view.spawn[a.Name]; ok && progress < 1 {
-			lines = spawnLines(card, progress)
+			cardLines = spawnLines(card, progress)
 		}
-		for _, line := range lines {
+		for _, line := range cardLines {
 			if available <= 0 {
 				break
 			}
-			b.WriteString(line + "\n")
+			lines = append(lines, line)
 			available--
 		}
 		if available <= 0 {
 			break
 		}
 	}
-	content := strings.TrimRight(b.String(), "\n")
+	lines = slideFocusBar(lines, view.focusPos)
+	content := strings.TrimRight(strings.Join(lines, "\n"), "\n")
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color(colorFaint.hex())).
@@ -388,6 +388,31 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 		Width(innerWidth + 1).
 		Height(height - 2)
 	return style.Render(content)
+}
+
+// slideFocusBar paints one highlight bar over the agent list. focusPos eases
+// toward the focused card, so the bar rolls from the old card to the new one
+// along the rows between them instead of jumping or cross-fading.
+func slideFocusBar(lines []string, focusPos float64) []string {
+	const cardHeight = 3
+	top := 1 + int(math.Round(focusPos*cardHeight))
+	last := len(lines) - cardHeight
+	if last < 1 {
+		return lines
+	}
+	if top < 1 {
+		top = 1
+	}
+	if top > last {
+		top = last
+	}
+	bar := fgStyle(plum).Render("▍")
+	for row := top; row < top+cardHeight && row < len(lines); row++ {
+		if strings.HasPrefix(lines[row], " ") {
+			lines[row] = bar + lines[row][1:]
+		}
+	}
+	return lines
 }
 
 // spawnLines grows a freshly spawned card out of the previous one and fades it
@@ -411,7 +436,7 @@ func spawnLines(card string, progress float64) []string {
 	return out
 }
 
-func (m Model) agentCard(view *sessionView, a *bus.Agent, width int, selected bool) string {
+func (m Model) agentCard(view *sessionView, a *bus.Agent, width int) string {
 	state := string(a.State())
 	name := truncate(a.Name, maxInt(4, width-14))
 	head := m.stateGlyph(state) + " " + textStyle.Render(name)
@@ -421,11 +446,7 @@ func (m Model) agentCard(view *sessionView, a *bus.Agent, width int, selected bo
 	head = padRight(head, maxInt(0, width-12)) + stateStyle(state).Render(truncate(state, 9))
 	preview := faintStyle.Render(lastPreview(view, a.Name, maxInt(4, width-2)))
 	stats := faintStyle.Render(fmt.Sprintf("%d tool · %d msg", toolCount(view, a.Name), msgCount(view, a.Name)))
-	bar := " "
-	if selected {
-		bar = fgStyle(plum).Render("▍")
-	}
-	return bar + head + "\n" + bar + preview + "\n" + bar + stats
+	return " " + head + "\n" + " " + preview + "\n" + " " + stats
 }
 
 func (m Model) renderComposerBlock() string {
