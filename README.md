@@ -90,3 +90,7 @@ layout: the input moves to the bottom, the chat and the agent sidebar fade in.
 ## Tests
 
     go test ./tests/...
+
+## License
+
+MIT — see [LICENSE](LICENSE).
