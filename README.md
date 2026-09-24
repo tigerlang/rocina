@@ -22,8 +22,9 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
 - Live chat per agent: white assistant text with markdown (headings, lists, inline code,
   and fenced code blocks as filled gray blocks), gray collapsible `thinking`, and every
   tool call in a filled gray block with the actual command and result. Provider errors
-  (rate limits, transport) appear inline in light red. A right sidebar keeps a minimised
-  chat for every agent.
+  (rate limits, transport) appear inline in light red as a short message, not the raw
+  provider body. A right sidebar keeps a minimised chat for every agent; a spawned
+  subagent floats out of the chief card instead of popping in.
 - Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions and the subagents they spawned persist
   across restarts (`<data_dir>/sessions.json`, `<data_dir>/subagents.json`) and are removed
   only with `d` in the session list.

@@ -152,9 +152,11 @@ Both get: `public_todo`, `private_todo`, `update_public_todo`, `update_private_t
 
 The session view streams everything an agent does. Assistant text is white, `thinking`
 is gray and expands on click, and each tool call shows its arguments (the executed
-command) and its result. The right sidebar keeps a minimised chat per agent; `tab`
-switches the focused agent. Sending the first message plays a smooth transition from the
-launcher to the session layout.
+command) and its result. A provider error is shown as one short message rather than the
+raw JSON the endpoint returned. The right sidebar keeps a minimised chat per agent;
+`tab` switches the focused agent, and a spawned subagent floats out of the chief card
+into the sidebar. Sending the first message plays a smooth transition from the launcher
+to the session layout.
 
 Input always goes to the focused agent: `tab` to `chief`, a subagent or any other agent
 and press `enter`. On the landing page there is no focused agent yet, so the first message
@@ -197,10 +199,13 @@ tokens, request count, requests per minute, and cost. Token counts come from the
 each provider reports per request; cost is shown only when the provider reports it (for
 example OpenRouter), otherwise it reads `cost n/a`.
 
-Long-running agents keep their prompt bounded: the conversation history sent to the model
-is trimmed to a character budget, always preserving the original goal and the most recent
-messages (and never leaving a tool result without its call). This keeps one long run from
-billing millions of tokens for resending an ever-growing log on every step.
+Long-running agents keep their prompt bounded: every tool result is capped before it
+enters the conversation, the conversation history sent to the model is trimmed to a
+character budget, and the coordination board is a capped summary. Each of these is
+resent on every step, so their caps decide the fixed per-request cost. The original
+goal and the most recent messages are always preserved, and no tool result is ever left
+without its call. This keeps one long run from billing millions of tokens for resending
+an ever-growing log on every step.
 
 ## Stopping agents
 
