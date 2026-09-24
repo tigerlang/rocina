@@ -24,7 +24,8 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   tool call in a filled gray block with the actual command and result. Provider errors
   (rate limits, transport) appear inline in light red as a short message, not the raw
   provider body. A right sidebar keeps a minimised chat for every agent; a spawned
-  subagent floats out of the chief card instead of popping in.
+  subagent floats out of the chief card, and switching agents rolls the focus
+  highlight to the new card.
 - Multiple sessions (`ctrl+n`, `ctrl+l`). Sessions and the subagents they spawned persist
   across restarts (`<data_dir>/sessions.json`, `<data_dir>/subagents.json`) and are removed
   only with `d` in the session list.

@@ -155,8 +155,9 @@ is gray and expands on click, and each tool call shows its arguments (the execut
 command) and its result. A provider error is shown as one short message rather than the
 raw JSON the endpoint returned. The right sidebar keeps a minimised chat per agent;
 `tab` switches the focused agent, and a spawned subagent floats out of the chief card
-into the sidebar. Sending the first message plays a smooth transition from the launcher
-to the session layout.
+into the sidebar. Switching agents rolls the focus highlight from the old card to the
+new one. Sending the first message plays a smooth transition from the launcher to the
+session layout.
 
 Input always goes to the focused agent: `tab` to `chief`, a subagent or any other agent
 and press `enter`. On the landing page there is no focused agent yet, so the first message
