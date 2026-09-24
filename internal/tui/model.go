@@ -67,6 +67,7 @@ type sessionView struct {
 	chats    map[string][]Block
 	expanded map[string]bool
 	cwd      map[string]string
+	spawn    map[string]float64
 	focus    int
 	scroll   int
 	ease     float64
@@ -163,7 +164,7 @@ func New(mgr *session.Manager) Model {
 }
 
 func (m *Model) attach(s *session.Session) *sessionView {
-	view := &sessionView{session: s, chats: loadChats(s), expanded: map[string]bool{}, cwd: map[string]string{}}
+	view := &sessionView{session: s, chats: loadChats(s), expanded: map[string]bool{}, cwd: map[string]string{}, spawn: map[string]float64{}}
 	go func(id string, events <-chan bus.Event) {
 		for ev := range events {
 			m.eventCh <- eventMsg{session: id, event: ev}
@@ -262,6 +263,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			view.ease += (target - view.ease) * 0.16
 			if math.Abs(target-view.ease) < 0.005 {
 				view.ease = target
+			}
+			for name, progress := range view.spawn {
+				if progress >= 1 {
+					delete(view.spawn, name)
+					continue
+				}
+				progress += (1 - progress) * 0.18
+				if 1-progress < 0.01 {
+					progress = 1
+				}
+				view.spawn[name] = progress
 			}
 		}
 		if m.frame%40 == 0 {
@@ -1004,6 +1016,12 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 	case "cwd":
 		if ev.Text != "" {
 			view.cwd[ev.Agent] = ev.Text
+		}
+	case "agent.added":
+		// A freshly spawned subagent emerges from the chief card instead of
+		// popping into the sidebar. Restored agents skip this.
+		if ev.Text == string(bus.KindSub) && view.started {
+			view.spawn[ev.Agent] = 0
 		}
 	}
 	view.dirty = true

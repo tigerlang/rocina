@@ -365,7 +365,11 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 	}
 	for i, a := range agents {
 		card := m.agentCard(view, a, innerWidth, i == view.focus)
-		for _, line := range strings.Split(card, "\n") {
+		lines := strings.Split(card, "\n")
+		if progress, ok := view.spawn[a.Name]; ok && progress < 1 {
+			lines = spawnLines(card, progress)
+		}
+		for _, line := range lines {
 			if available <= 0 {
 				break
 			}
@@ -384,6 +388,27 @@ func (m Model) renderSidebar(view *sessionView, width, height int) string {
 		Width(innerWidth + 1).
 		Height(height - 2)
 	return style.Render(content)
+}
+
+// spawnLines reveals a freshly spawned card top-down and fades it in, so the
+// subagent appears to float out of the chief card above it instead of popping
+// into the sidebar.
+func spawnLines(card string, progress float64) []string {
+	lines := strings.Split(card, "\n")
+	reveal := int(math.Ceil(clamp01(progress) * float64(len(lines))))
+	if reveal < 1 {
+		reveal = 1
+	}
+	if reveal > len(lines) {
+		reveal = len(lines)
+	}
+	out := make([]string, len(lines))
+	for i := range lines {
+		if i < reveal {
+			out[i] = fadeANSI(lines[i], progress)
+		}
+	}
+	return out
 }
 
 func (m Model) agentCard(view *sessionView, a *bus.Agent, width int, selected bool) string {
