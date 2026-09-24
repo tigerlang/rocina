@@ -32,15 +32,20 @@ func wrapText(s string, width int) []string {
 		}
 		line := ""
 		for _, word := range strings.Fields(paragraph) {
-			if line == "" {
-				line = word
-				continue
-			}
-			if len([]rune(line))+1+len([]rune(word)) <= width {
-				line += " " + word
-			} else {
-				out = append(out, line)
-				line = word
+			// A token longer than the width (a URL, a base64 blob, a raw JSON
+			// fragment) must be hard-wrapped; otherwise the line overflows the
+			// panel and pushes the sidebar off screen.
+			for _, chunk := range hardWrap(word, width) {
+				if line == "" {
+					line = chunk
+					continue
+				}
+				if len([]rune(line))+1+len([]rune(chunk)) <= width {
+					line += " " + chunk
+				} else {
+					out = append(out, line)
+					line = chunk
+				}
 			}
 		}
 		if line != "" {
@@ -49,6 +54,24 @@ func wrapText(s string, width int) []string {
 	}
 	if len(out) == 0 {
 		out = append(out, "")
+	}
+	return out
+}
+
+// hardWrap splits a word that is wider than the width into width-sized runes.
+// A word that already fits is returned whole.
+func hardWrap(word string, width int) []string {
+	runes := []rune(word)
+	if len(runes) <= width {
+		return []string{word}
+	}
+	out := make([]string, 0, len(runes)/width+1)
+	for len(runes) > width {
+		out = append(out, string(runes[:width]))
+		runes = runes[width:]
+	}
+	if len(runes) > 0 {
+		out = append(out, string(runes))
 	}
 	return out
 }
