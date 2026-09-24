@@ -47,7 +47,12 @@ type Runtime struct {
 // resends the whole history, so an unbounded log turns one long run into
 // millions of billed tokens. The anchor (the original goal) and the newest
 // messages are always kept, and no tool result is left without its call.
-const maxHistoryChars = 48000
+const maxHistoryChars = 24000
+
+// maxToolMessageChars caps a single tool result inside the history. The same
+// result is resent on every following step, so one oversized result would keep
+// inflating each request even after the tool itself returned.
+const maxToolMessageChars = 4000
 
 func messageChars(m llm.Message) int {
 	n := len(m.Content) + len(m.ToolCallID)
@@ -57,7 +62,31 @@ func messageChars(m llm.Message) int {
 	return n
 }
 
+// clampTools caps oversized tool results that predate the per-result limit, so
+// an older session cannot keep resending one result on every following step.
+// It copies only when something needs clamping and never mutates the caller.
+func clampTools(messages []llm.Message) []llm.Message {
+	var out []llm.Message
+	for i, m := range messages {
+		if m.Role != llm.RoleTool || len(m.Content) <= maxToolMessageChars {
+			continue
+		}
+		if out == nil {
+			out = append([]llm.Message(nil), messages...)
+		}
+		out[i].Content = m.Content[:maxToolMessageChars] + "\n...[truncated]"
+	}
+	if out == nil {
+		return messages
+	}
+	return out
+}
+
 func trimHistory(messages []llm.Message, maxChars int) []llm.Message {
+	if len(messages) == 0 {
+		return messages
+	}
+	messages = clampTools(messages)
 	if maxChars <= 0 || len(messages) < 2 {
 		return messages
 	}

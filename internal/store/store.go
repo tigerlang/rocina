@@ -383,9 +383,13 @@ func (s *Store) Snapshot(agent string) Snapshot {
 	return snap
 }
 
+// The board is appended to every agent's system prompt on every request, so its
+// caps decide a fixed per-request cost. Keep it small enough to stay a summary.
 const (
-	boardTodoLimit   = 40
-	boardSharedLimit = 40
+	boardTodoLimit   = 12
+	boardSharedLimit = 12
+	boardDetailLimit = 80
+	boardValueLimit  = 100
 )
 
 func (s *Store) Board(agent string) string {
@@ -412,7 +416,7 @@ func (s *Store) Board(agent string) string {
 		for _, t := range shown {
 			fmt.Fprintf(&b, "- [%s] %s (id=%s, prio=%d)", t.Status, t.Title, t.ID, t.Priority)
 			if t.Detail != "" {
-				b.WriteString(" :: " + truncate(t.Detail, 120))
+				b.WriteString(" :: " + truncate(t.Detail, boardDetailLimit))
 			}
 			b.WriteString("\n")
 		}
@@ -434,7 +438,7 @@ func (s *Store) Board(agent string) string {
 			shown = shown[:boardSharedLimit]
 		}
 		for _, k := range shown {
-			fmt.Fprintf(&b, "- %s = %s\n", k, truncate(snap.Shared[k], 160))
+			fmt.Fprintf(&b, "- %s = %s\n", k, truncate(snap.Shared[k], boardValueLimit))
 		}
 		if hidden := len(keys) - len(shown); hidden > 0 {
 			fmt.Fprintf(&b, "- (+%d more keys)\n", hidden)

@@ -143,11 +143,19 @@ func runWeb(ctx context.Context, env *Env, args json.RawMessage) (string, error)
 	return fmt.Sprintf("status: %d\n%s", resp.StatusCode, truncateOutput(string(body))), nil
 }
 
-const outputLimit = 16000
+// outputLimit caps a single tool result before it enters the conversation.
+// Tool results are resent on every following step, so a large result is paid
+// for repeatedly; a small result keeps the whole run affordable.
+const outputLimit = 4000
 
+// truncateOutput keeps the head and the tail of a long result. The head holds
+// the beginning of the output and the tail holds trailing errors and exit
+// status, which matters more than the middle.
 func truncateOutput(s string) string {
 	if len(s) <= outputLimit {
 		return s
 	}
-	return s[:outputLimit] + "\n...[truncated]"
+	head := outputLimit / 2
+	tail := outputLimit - head
+	return s[:head] + "\n...[truncated]...\n" + s[len(s)-tail:]
 }
