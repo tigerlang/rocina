@@ -425,7 +425,12 @@ func (r *Runtime) executeTool(ctx context.Context, call llm.ToolCall) string {
 			r.sentSinceInput = true
 			r.mu.Unlock()
 		}
+		// Stream partial output so the chat shows it while the command runs.
+		r.Env.Output = func(text string) {
+			r.Bus.Publish(bus.Event{Type: "tool.output", Agent: r.Agent.Name, Text: text, CallID: call.ID})
+		}
 		out, err := tool.Run(ctx, r.Env, jsonRaw(call.Arguments))
+		r.Env.Output = nil
 		switch {
 		case err != nil && out != "":
 			result = fmt.Sprintf("error: %v\n%s", err, out)

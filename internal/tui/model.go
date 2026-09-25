@@ -1012,6 +1012,8 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 		view.chats[ev.Agent] = append(view.chats[ev.Agent], Block{Kind: "tool", Tool: ev.Tool, CallID: ev.CallID, At: ev.At})
 	case "tool.args":
 		appendToolArgs(view, ev.Agent, ev.CallID, ev.Text)
+	case "tool.output":
+		appendToolOutput(view, ev.Agent, ev.CallID, ev.Text)
 	case "tool.result":
 		finishTool(view, ev.Agent, ev.CallID, ev.Tool, ev.Text)
 	case "assistant.error":
@@ -1071,6 +1073,19 @@ func appendToolArgs(view *sessionView, agent, callID, text string) {
 		}
 		if callID == "" || blocks[i].CallID == callID {
 			blocks[i].Args += text
+			return
+		}
+	}
+}
+
+func appendToolOutput(view *sessionView, agent, callID, text string) {
+	blocks := view.chats[agent]
+	for i := len(blocks) - 1; i >= 0; i-- {
+		if blocks[i].Kind != "tool" || blocks[i].Done {
+			continue
+		}
+		if callID == "" || blocks[i].CallID == callID {
+			blocks[i].Result += text
 			return
 		}
 	}

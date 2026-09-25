@@ -33,9 +33,19 @@ type Env struct {
 	Policy    Policy
 	Approve   Approver
 
+	// Output streams partial command output while a tool runs, so the TUI can
+	// show it live instead of waiting for the command to finish.
+	Output func(text string)
+
 	mu        sync.Mutex
 	terminals map[string]*Terminal
 	cwd       string
+}
+
+func (e *Env) stream(text string) {
+	if e.Output != nil && text != "" {
+		e.Output(text)
+	}
 }
 
 func (e *Env) terminal() (*Terminal, error) {

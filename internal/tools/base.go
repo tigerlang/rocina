@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,8 +62,9 @@ func runBash(ctx context.Context, env *Env, args json.RawMessage) (string, error
 	cmd := exec.CommandContext(cctx, "bash", "-lc", in.Command)
 	cmd.Dir = env.Workspace
 	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
+	writer := &streamWriter{env: env, sink: &out}
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 	err := cmd.Run()
 	combined := truncateOutput(out.String())
 	if cctx.Err() == context.DeadlineExceeded {
@@ -91,7 +93,7 @@ func runTerminal(ctx context.Context, env *Env, args json.RawMessage) (string, e
 	if err != nil {
 		return "", err
 	}
-	out, err := term.Run(ctx, in.Command)
+	out, err := term.Run(ctx, in.Command, env.stream)
 	if cwd := term.Cwd(); cwd != "" {
 		env.SetCwd(cwd)
 	}
@@ -146,6 +148,22 @@ func runWeb(ctx context.Context, env *Env, args json.RawMessage) (string, error)
 // outputLimit caps a single tool result before it enters the conversation.
 // Tool results are resent on every following step, so a large result is paid
 // for repeatedly; a small result keeps the whole run affordable.
+// streamWriter tees a command's output into the buffer that becomes the tool
+// result and, when a stream hook is set, into live output for the TUI.
+type streamWriter struct {
+	env  *Env
+	sink *bytes.Buffer
+	mu   sync.Mutex
+}
+
+func (w *streamWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.sink.Write(p)
+	w.env.stream(string(p))
+	return len(p), nil
+}
+
 const outputLimit = 4000
 
 // truncateOutput keeps the head and the tail of a long result. The head holds

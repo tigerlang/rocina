@@ -256,6 +256,18 @@ func TestTerminalTracksCwd(t *testing.T) {
 	}
 }
 
+func TestTerminalStreamsOutput(t *testing.T) {
+	env, _ := newToolEnv(t, bus.KindSub)
+	var live strings.Builder
+	env.Output = func(text string) { live.WriteString(text) }
+	if _, err := runTool(t, env, bus.KindSub, "terminal_tool", map[string]any{"command": "for i in 1 2 3; do echo line-$i; done"}); err != nil {
+		t.Fatalf("terminal_tool: %v", err)
+	}
+	if !strings.Contains(live.String(), "line-1") || !strings.Contains(live.String(), "line-3") {
+		t.Fatalf("terminal output was not streamed live: %q", live.String())
+	}
+}
+
 func TestThinkTool(t *testing.T) {
 	env, _ := newToolEnv(t, bus.KindChief)
 	out, err := runTool(t, env, bus.KindChief, "think", map[string]any{"thought": "this is a greeting"})

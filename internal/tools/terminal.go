@@ -38,7 +38,7 @@ func newTerminal() (*Terminal, error) {
 	return &Terminal{cmd: cmd, stdin: stdin, out: bufio.NewReader(stdout)}, nil
 }
 
-func (t *Terminal) Run(ctx context.Context, command string) (string, error) {
+func (t *Terminal) Run(ctx context.Context, command string, emit func(string)) (string, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.closed {
@@ -76,6 +76,9 @@ func (t *Terminal) Run(ctx context.Context, command string) (string, error) {
 				continue
 			}
 			buf.WriteString(line)
+			if emit != nil {
+				emit(line)
+			}
 		}
 	}()
 
