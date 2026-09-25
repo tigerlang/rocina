@@ -98,9 +98,9 @@ func runTerminal(ctx context.Context, env *Env, args json.RawMessage) (string, e
 		env.SetCwd(cwd)
 	}
 	if err != nil {
-		return out, err
+		return truncateOutput(out), err
 	}
-	return out, nil
+	return truncateOutput(out), nil
 }
 
 func runWeb(ctx context.Context, env *Env, args json.RawMessage) (string, error) {

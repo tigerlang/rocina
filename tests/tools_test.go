@@ -268,6 +268,17 @@ func TestTerminalStreamsOutput(t *testing.T) {
 	}
 }
 
+func TestTerminalCapsOutput(t *testing.T) {
+	env, _ := newToolEnv(t, bus.KindSub)
+	out, err := runTool(t, env, bus.KindSub, "terminal_tool", map[string]any{"command": "printf '" + strings.Repeat("x", 20000) + "'"})
+	if err != nil {
+		t.Fatalf("terminal_tool: %v", err)
+	}
+	if len(out) > 5000 {
+		t.Fatalf("terminal output was not capped: %d bytes", len(out))
+	}
+}
+
 func TestThinkTool(t *testing.T) {
 	env, _ := newToolEnv(t, bus.KindChief)
 	out, err := runTool(t, env, bus.KindChief, "think", map[string]any{"thought": "this is a greeting"})
