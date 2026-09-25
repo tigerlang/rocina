@@ -172,8 +172,8 @@ func (m Model) buildChat(view *sessionView, agent string, width, height int) ([]
 			addLine(errorStyle.Render("provider error"), "")
 			addText(b.Text, width, errorStyle, "")
 		case "tool":
-			for _, line := range m.renderToolBox(b, width) {
-				addLine(line, "")
+			for _, line := range m.renderToolBox(b, width, view.expanded[key]) {
+				addLine(line, key)
 			}
 		}
 	}
@@ -247,7 +247,7 @@ func blockLine(text string, fg, bg rgb, width int) string {
 	return style.Render(" " + text + strings.Repeat(" ", pad+1))
 }
 
-func (m Model) renderToolBox(b Block, width int) []string {
+func (m Model) renderToolBox(b Block, width int, expanded bool) []string {
 	if width < 8 {
 		width = 8
 	}
@@ -256,13 +256,13 @@ func (m Model) renderToolBox(b Block, width int) []string {
 		title += " …"
 	}
 	lines := []string{blockLine(title, colorText, colorSurface2, width)}
-	for _, line := range toolBodyLines(b, width-2) {
+	for _, line := range toolBodyLines(b, width-2, expanded) {
 		lines = append(lines, blockLine(line.text, line.fg, colorSurface, width))
 	}
 	return lines
 }
 
-func toolBodyLines(b Block, width int) []toolLine {
+func toolBodyLines(b Block, width int, expanded bool) []toolLine {
 	fields := parseArgs(b.Args)
 	var out []toolLine
 	add := func(text string, fg rgb) { out = append(out, toolLine{text, fg}) }
@@ -300,7 +300,11 @@ func toolBodyLines(b Block, width int) []toolLine {
 	}
 	if strings.TrimSpace(b.Result) != "" {
 		add("", colorMuted)
-		for _, line := range resultPreview(b.Result, width, 8) {
+		limit := 8
+		if expanded {
+			limit = 0
+		}
+		for _, line := range resultPreview(b.Result, width, limit) {
 			add(line, colorMuted)
 		}
 	}

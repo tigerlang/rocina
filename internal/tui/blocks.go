@@ -108,9 +108,11 @@ func stringify(value any) string {
 	return string(encoded)
 }
 
+// resultPreview caps a tool result to maxLines. A maxLines of zero means the
+// result is expanded, so every line is shown.
 func resultPreview(result string, width, maxLines int) []string {
 	lines := wrapText(strings.TrimRight(result, "\n"), width)
-	if len(lines) <= maxLines {
+	if maxLines <= 0 || len(lines) <= maxLines {
 		return lines
 	}
 	out := append([]string{}, lines[:maxLines]...)
