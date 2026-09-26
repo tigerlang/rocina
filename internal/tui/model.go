@@ -28,6 +28,10 @@ type eventMsg struct {
 	event   bus.Event
 }
 
+// eventBatch carries every event that arrived since the last frame, so a burst
+// from several busy agents is applied in one update and rendered once.
+type eventBatch []eventMsg
+
 type approvalRequest struct {
 	approval tools.Approval
 	reply    chan bool
@@ -202,7 +206,21 @@ func (m Model) waitEvent() tea.Cmd {
 		if !ok {
 			return refreshMsg{}
 		}
-		return msg
+		// Drain everything already queued so a burst from several busy agents
+		// is applied in one update and rendered once.
+		batch := eventBatch{msg}
+		for len(batch) < 512 {
+			select {
+			case next, ok := <-m.eventCh:
+				if !ok {
+					return batch
+				}
+				batch = append(batch, next)
+			default:
+				return batch
+			}
+		}
+		return batch
 	}
 }
 
@@ -232,6 +250,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case eventMsg:
 		if view := m.viewByID(msg.session); view != nil {
 			m.applyEvent(view, msg.event)
+		}
+		return m, m.waitEvent()
+	case eventBatch:
+		for _, msg := range msg {
+			if view := m.viewByID(msg.session); view != nil {
+				m.applyEvent(view, msg.event)
+			}
 		}
 		return m, m.waitEvent()
 	case approvalMsg:
@@ -276,12 +301,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				view.spawn[name] = progress
 			}
-			view.focusPos += (float64(view.focus) - view.focusPos) * 0.22
-			if math.Abs(float64(view.focus)-view.focusPos) < 0.01 {
+			view.focusPos += (float64(view.focus) - view.focusPos) * 0.45
+			if math.Abs(float64(view.focus)-view.focusPos) < 0.02 {
 				view.focusPos = float64(view.focus)
 			}
 		}
-		if m.frame%40 == 0 {
+		m.settings.ease()
+		if m.frame%60 == 0 {
 			m.flushChats()
 		}
 		return m, frameTick()
@@ -1031,7 +1057,21 @@ func (m *Model) applyEvent(view *sessionView, ev bus.Event) {
 			view.spawn[ev.Agent] = 0
 		}
 	}
+	pruneBlocks(view, ev.Agent)
 	view.dirty = true
+}
+
+// maxBlocksPerAgent bounds the on-screen chat for one agent. Live output from a
+// busy command can append without limit, which slows every redraw; older blocks
+// scroll out of view anyway.
+const maxBlocksPerAgent = 400
+
+func pruneBlocks(view *sessionView, agent string) {
+	blocks := view.chats[agent]
+	if len(blocks) <= maxBlocksPerAgent {
+		return
+	}
+	view.chats[agent] = append([]Block(nil), blocks[len(blocks)-maxBlocksPerAgent:]...)
 }
 
 func (m *Model) flushChats() {

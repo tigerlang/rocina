@@ -586,7 +586,13 @@ func (m Model) hintLines() []string {
 		return wrapText("error: "+m.err.Error(), width)
 	}
 	cfg := m.activeConfig()
-	text := cfg.Provider + " · " + cfg.Model +
+	model := cfg.Model
+	if view := m.activeView(); view != nil {
+		if agent := view.session.Orch.Bus().Get(m.focusedName(view)); agent != nil && agent.Model != "" {
+			model = agent.Model
+		}
+	}
+	text := cfg.Provider + " · " + model +
 		"    enter send · shift+enter/ctrl+j newline · tab agent · ctrl+a models · ctrl+n new · ctrl+l sessions · ctrl+o settings · ctrl+c quit"
 	return wrapText(text, width)
 }
