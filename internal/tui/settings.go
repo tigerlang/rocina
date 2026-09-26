@@ -2,6 +2,7 @@ package tui
 
 import (
 	"encoding/json"
+	"math"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,7 @@ var hotkeyLines = []string{
 
 type settingsState struct {
 	tab    int
+	tabPos float64
 	cursor int
 	editor textarea.Model
 	status string
@@ -52,6 +54,14 @@ func newSettings(cfg config.Config) settingsState {
 	s := settingsState{editor: editor}
 	s.load(cfg)
 	return s
+}
+
+func (s *settingsState) ease() {
+	target := float64(s.tab)
+	s.tabPos += (target - s.tabPos) * 0.45
+	if math.Abs(target-s.tabPos) < 0.02 {
+		s.tabPos = target
+	}
 }
 
 func (s *settingsState) load(cfg config.Config) {
@@ -156,10 +166,10 @@ func (s *settingsState) handleMouse(msg tea.MouseMsg, m *Model) tea.Cmd {
 func (s *settingsState) settingsRows() int {
 	switch s.tab {
 	case 0:
-		return len(securityItems) + 4
+		return len(securityItems) + 5
 	case 1:
-		return s.editor.Height() + 5
+		return s.editor.Height() + 6
 	default:
-		return len(hotkeyLines) + 4
+		return len(hotkeyLines) + 5
 	}
 }

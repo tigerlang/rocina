@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"math"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -89,6 +90,7 @@ func (m Model) renderSettingsOverlay() string {
 
 	var body strings.Builder
 	body.WriteString(header + "\n")
+	body.WriteString(settingsMarker(tabs, s.tabPos) + "\n")
 	switch s.tab {
 	case 0:
 		cfg := m.mgr.Config()
@@ -129,6 +131,50 @@ func (m Model) renderSettingsOverlay() string {
 	}
 	title := "SETTINGS   " + faintStyle.Render(configPathLabel())
 	return m.placeOverlay(renderFramed(title, body.String(), geom))
+}
+
+// settingsMarker draws the bar under the tab row. tabPos eases toward the
+// selected tab, so the underline rolls to the new tab like the agent sidebar.
+func settingsMarker(tabs []string, tabPos float64) string {
+	const gap = "   "
+	starts := make([]int, len(tabs))
+	column := 0
+	for i, name := range tabs {
+		starts[i] = column
+		column += len([]rune(name)) + len(gap)
+	}
+	last := len(tabs) - 1
+	pos := tabPos
+	if pos < 0 {
+		pos = 0
+	}
+	if pos > float64(last) {
+		pos = float64(last)
+	}
+	low := int(math.Floor(pos))
+	if low < 0 {
+		low = 0
+	}
+	high := low + 1
+	if high > last {
+		high = last
+	}
+	fraction := pos - float64(low)
+	x := float64(starts[low]) + (float64(starts[high])-float64(starts[low]))*fraction
+	width := len([]rune(tabs[low]))
+	start := int(math.Round(x))
+	line := make([]rune, start+width)
+	for i := range line {
+		line[i] = ' '
+	}
+	for i := start; i < start+width && i < len(line); i++ {
+		line[i] = '▔'
+	}
+	shade := 1.0
+	if last > 0 {
+		shade = pos / float64(last)
+	}
+	return fgStyle(mix(colorMuted, plum, shade)).Render(string(line))
 }
 
 func (m Model) renderModelsOverlay() string {

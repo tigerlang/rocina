@@ -146,6 +146,9 @@ func (o *Orchestrator) SetConfig(cfg config.Config) {
 		} else {
 			runtime.Model = o.subModel()
 		}
+		// The agent header and the hint under the input read the agent's model,
+		// so it must follow a config change too.
+		runtime.Agent.Model = runtime.Model
 	}
 	o.mu.Unlock()
 	o.SetSecurity(cfg.Security)
