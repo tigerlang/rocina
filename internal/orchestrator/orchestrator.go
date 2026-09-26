@@ -170,7 +170,12 @@ func (o *Orchestrator) Stats() Stats {
 	var out Stats
 	for _, runtime := range runtimes {
 		usage := runtime.Usage()
-		out.ContextTokens += usage.ContextTokens
+		// Context is what one request currently carries, not the sum across
+		// agents; summing it made the figure grow with the team size. Total is
+		// the cumulative billed tokens and does add up.
+		if usage.ContextTokens > out.ContextTokens {
+			out.ContextTokens = usage.ContextTokens
+		}
 		out.TotalTokens += usage.TotalTokens
 		out.Requests += usage.Requests
 		out.Cost += usage.Cost

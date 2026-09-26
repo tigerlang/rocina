@@ -91,6 +91,37 @@ type Usage struct {
 	CostUSD          float64
 }
 
+// Merge folds a usage report into the running one, keeping the largest value of
+// every field. Providers either send usage once at the end or stream cumulative
+// values, and merging also survives providers that split prompt and completion
+// across chunks. Adding the fields would double count; overwriting would drop a
+// split report.
+func (u Usage) Merge(other Usage) Usage {
+	if other.PromptTokens > u.PromptTokens {
+		u.PromptTokens = other.PromptTokens
+	}
+	if other.CompletionTokens > u.CompletionTokens {
+		u.CompletionTokens = other.CompletionTokens
+	}
+	if other.TotalTokens > u.TotalTokens {
+		u.TotalTokens = other.TotalTokens
+	}
+	if other.CostUSD > u.CostUSD {
+		u.CostUSD = other.CostUSD
+	}
+	return u
+}
+
+// Normalize fills the total from prompt and completion when the provider did not
+// report one, and drops a total that is smaller than its parts.
+func (u Usage) Normalize() Usage {
+	parts := u.PromptTokens + u.CompletionTokens
+	if u.TotalTokens < parts {
+		u.TotalTokens = parts
+	}
+	return u
+}
+
 type ChatResponse struct {
 	Message Message
 	Usage   Usage

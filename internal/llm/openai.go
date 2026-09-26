@@ -290,16 +290,12 @@ type openAIAssembler struct {
 
 func (a *openAIAssembler) consume(chunk openAIChunk, emit StreamFunc) {
 	if chunk.Usage != nil {
-		total := chunk.Usage.TotalTokens
-		if total == 0 {
-			total = chunk.Usage.PromptTokens + chunk.Usage.CompletionTokens
-		}
-		a.usage = Usage{
+		a.usage = a.usage.Merge(Usage{
 			PromptTokens:     chunk.Usage.PromptTokens,
 			CompletionTokens: chunk.Usage.CompletionTokens,
-			TotalTokens:      total,
+			TotalTokens:      chunk.Usage.TotalTokens,
 			CostUSD:          chunk.Usage.Cost,
-		}
+		})
 	}
 	if len(chunk.Choices) == 0 {
 		return

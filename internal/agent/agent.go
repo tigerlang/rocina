@@ -201,12 +201,10 @@ func (r *Runtime) persistHistory() {
 
 func (r *Runtime) recordUsage(usage llm.Usage) {
 	now := time.Now()
+	usage = usage.Normalize()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	total := usage.TotalTokens
-	if total == 0 {
-		total = usage.PromptTokens + usage.CompletionTokens
-	}
 	r.totalTokens += total
 	r.contextTokens = usage.PromptTokens
 	r.requests++
