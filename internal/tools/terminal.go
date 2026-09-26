@@ -21,8 +21,9 @@ type Terminal struct {
 	cwd    string
 }
 
-func newTerminal() (*Terminal, error) {
+func newTerminal(dir string) (*Terminal, error) {
 	cmd := exec.Command("bash", "--norc")
+	cmd.Dir = dir
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

@@ -57,7 +57,11 @@ func (e *Env) terminal() (*Terminal, error) {
 	if t, ok := e.terminals[e.Agent.ID]; ok {
 		return t, nil
 	}
-	t, err := newTerminal()
+	dir := e.cwd
+	if dir == "" {
+		dir = e.Workspace
+	}
+	t, err := newTerminal(dir)
 	if err != nil {
 		return nil, err
 	}
