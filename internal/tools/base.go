@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"rocina/internal/version"
 )
 
 func registerBase(r *Registry) {
@@ -124,7 +126,7 @@ func runWeb(ctx context.Context, env *Env, args json.RawMessage) (string, error)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "Rocina/0.2.4")
+	req.Header.Set("User-Agent", "Rocina/"+version.Version)
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {

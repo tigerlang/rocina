@@ -31,16 +31,16 @@ subagents execute with real tools. It ships with a Bubble Tea TUI and a headless
   across restarts (`<data_dir>/sessions.json`, `<data_dir>/subagents.json`) and are removed
   only with `d` in the session list.
 - Settings overlay (`ctrl+o` or "settings" in the sidebar) with Security, a config editor
-  that applies on save, and a Hotkeys tab.
-- Per-session usage: context and total tokens, requests per minute, and cost when the
-  provider reports it.
+  that applies on save and refreshes the live model, and a Hotkeys tab.
+- Per-session usage: context (the last request) and total billed tokens, requests per
+  minute, and cost when the provider reports it.
 - Model picker in the TUI (`ctrl+a`): lists the provider's models plus any `models` from
   the config. `tab` switches the target between `chief` and `subagents`; the choice is
   applied live and saved to the config.
 - Messages go to the focused agent (`tab` to switch). The first message on the landing
   page starts a new session.
 - Working directories: `you are in:` shows the launch directory, and `agent now in:` tracks
-  the focused agent's live shell directory in real time.
+  the focused agent's live shell directory in real time, starting from the workspace.
 - Stop agents: press `esc` twice to interrupt the chief, a subagent, all subagents or all
   agents from a small panel above the input.
 - Wake agents: the chief sees every agent's state and can revive a stuck or failed one with

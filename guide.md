@@ -190,16 +190,18 @@ directory. Each session keeps its own chats, agents and history.
 ## Working directories
 
 Above the input, `you are in:` shows the directory Rocina was started from. In a session,
-`agent now in:` shows the focused agent's live shell directory: `terminal_tool` reads
-`$PWD` after every command, so once the agent creates a folder and `cd`s into it the path
-updates in real time. Before the shell is used it falls back to the absolute workspace.
+`agent now in:` shows the focused agent's live shell directory: the persistent shell
+starts in the configured workspace and `terminal_tool` reads `$PWD` after every command,
+so once the agent creates a folder and `cd`s into it the path updates in real time.
+Before the shell is used it falls back to the absolute workspace.
 
 ## Usage
 
-Under the input the session shows `ctx` (prompt tokens of the last request), `total`
-tokens, request count, requests per minute, and cost. Token counts come from the usage
-each provider reports per request; cost is shown only when the provider reports it (for
-example OpenRouter), otherwise it reads `cost n/a`.
+Under the input the session shows `ctx` (prompt tokens carried by one request), `total`
+billed tokens, request count, requests per minute, and cost. Token counts come from the
+usage each provider reports per request; streaming usage is merged so a provider that
+repeats or splits its usage report is not double counted. Cost is shown only when the
+provider reports it (for example OpenRouter), otherwise it reads `cost n/a`.
 
 Long-running agents keep their prompt bounded: every tool result — including command
 output from `bash_tool` and `terminal_tool` — is capped before it enters the
@@ -249,7 +251,8 @@ to see who needs waking.
 - **tui config** — an embedded editor pre-filled with the full config. `ctrl+s` writes it
   to `~/.config/rocina/config.json` and applies it immediately: the provider is rebuilt
   and the model, workspace, limits and security are updated for every running session.
-- **hotkeys** — a read-only list of every keybinding.
+- **hotkeys** — a read-only list of every keybinding. Switching tabs slides an underline
+  to the selected one, matching the agent sidebar.
 
 ## Security
 
