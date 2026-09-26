@@ -311,9 +311,9 @@ func (a *anthropicAssembler) consume(event anthropicEvent, emit StreamFunc) {
 	}
 	switch event.Type {
 	case "message_start":
-		a.usage.PromptTokens = event.Message.Usage.InputTokens
+		a.usage = a.usage.Merge(Usage{PromptTokens: event.Message.Usage.InputTokens})
 	case "message_delta":
-		a.usage.CompletionTokens = event.Usage.OutputTokens
+		a.usage = a.usage.Merge(Usage{PromptTokens: event.Usage.InputTokens, CompletionTokens: event.Usage.OutputTokens})
 	case "content_block_start":
 		if event.ContentBlock.Type == "tool_use" {
 			a.calls[event.Index] = &ToolCall{ID: event.ContentBlock.ID, Name: event.ContentBlock.Name}
